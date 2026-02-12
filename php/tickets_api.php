@@ -1,6 +1,7 @@
 <?php
 /**
- * tickets_api.php - API MEJORADA CON TODAS LAS FUNCIONALIDADES
+ * tickets_api.php - API COMPLETA Y FINAL
+ * Todas las funciones corregidas y mejoradas
  */
 
 session_start();
@@ -78,7 +79,6 @@ function listar_tickets() {
     $user_id = $_SESSION['user_id'];
     $rol = $_SESSION['id_rol_admin'];
     
-    // Calcular tiempo para color de fila
     if ($rol <= 3) {
         // Admin ve todos los asignados a él o sin asignar
         $query = "SELECT t.*, 
@@ -95,11 +95,10 @@ function listar_tickets() {
                   FROM tickets t
                   LEFT JOIN usuarios u ON t.id_usuario = u.id
                   LEFT JOIN usuarios a ON t.id_asignado = a.id
-                  WHERE (t.id_asignado = ? OR t.id_asignado IS NULL)
-                  ORDER BY t.fecha_creacion DESC
-                  LIMIT 20";
+                  WHERE (t.id_asignado = ? OR t.id_asignado IS NULL OR t.id_usuario = ?)
+                  ORDER BY t.fecha_creacion DESC";
         $stmt = $conn->prepare($query);
-        $stmt->bind_param("i", $user_id);
+        $stmt->bind_param("ii", $user_id, $user_id);
         $stmt->execute();
         $result = $stmt->get_result();
     } else {
@@ -119,8 +118,7 @@ function listar_tickets() {
                   LEFT JOIN usuarios u ON t.id_usuario = u.id
                   LEFT JOIN usuarios a ON t.id_asignado = a.id
                   WHERE t.id_usuario = ?
-                  ORDER BY t.fecha_creacion DESC
-                  LIMIT 20";
+                  ORDER BY t.fecha_creacion DESC";
         $stmt = $conn->prepare($query);
         $stmt->bind_param("i", $user_id);
         $stmt->execute();
@@ -129,11 +127,8 @@ function listar_tickets() {
     
     $tickets = [];
     while ($row = $result->fetch_assoc()) {
-        // Calcular porcentaje de urgencia (0-100%)
         $minutos = $row['minutos_abierto'];
-        $urgencia = min(100, ($minutos / 60) * 100); // 0% a 0min, 100% a 60min
-        $row['urgencia_porcentaje'] = $urgencia;
-        
+        $row['urgencia_porcentaje'] = min(100, ($minutos / 60) * 100);
         $tickets[] = $row;
     }
     
@@ -147,7 +142,7 @@ function listar_tickets_filtrados() {
     $rol = $_SESSION['id_rol_admin'];
     
     // Obtener filtros
-    $usuarios = $_POST['usuarios'] ?? [];
+    $usuarios = isset($_POST['usuarios']) ? $_POST['usuarios'] : [];
     $fecha_desde = $_POST['fecha_desde'] ?? '';
     $fecha_hasta = $_POST['fecha_hasta'] ?? '';
     $estado = $_POST['estado'] ?? '';
@@ -160,9 +155,9 @@ function listar_tickets_filtrados() {
     $params = [];
     $types = '';
     
-    // Filtro de usuario (solo admin)
+    // Filtro de usuario
     if ($rol <= 3) {
-        if (!empty($usuarios)) {
+        if (!empty($usuarios) && is_array($usuarios)) {
             $placeholders = str_repeat('?,', count($usuarios) - 1) . '?';
             $where[] = "t.id_usuario IN ($placeholders)";
             foreach ($usuarios as $u) {
@@ -176,7 +171,7 @@ function listar_tickets_filtrados() {
         $types .= 'i';
     }
     
-    // Filtro de fechas
+    // Filtros adicionales
     if ($fecha_desde) {
         $where[] = "DATE(t.fecha_creacion) >= ?";
         $params[] = $fecha_desde;
@@ -187,29 +182,21 @@ function listar_tickets_filtrados() {
         $params[] = $fecha_hasta;
         $types .= 's';
     }
-    
-    // Filtro de estado
     if ($estado) {
         $where[] = "t.estado = ?";
         $params[] = $estado;
         $types .= 's';
     }
-    
-    // Filtro de prioridad
     if ($prioridad) {
         $where[] = "t.prioridad = ?";
         $params[] = $prioridad;
         $types .= 's';
     }
-    
-    // Filtro de categoría
     if ($categoria) {
         $where[] = "t.categoria = ?";
         $params[] = $categoria;
         $types .= 's';
     }
-    
-    // Filtro de búsqueda
     if ($busqueda) {
         $where[] = "(t.id = ? OR t.titulo LIKE ? OR t.descripcion LIKE ? OR u.usuario LIKE ? OR u.email LIKE ?)";
         $params[] = intval($busqueda);
@@ -239,8 +226,7 @@ function listar_tickets_filtrados() {
               LEFT JOIN usuarios u ON t.id_usuario = u.id
               LEFT JOIN usuarios a ON t.id_asignado = a.id
               $where_sql
-              ORDER BY t.fecha_creacion DESC
-              LIMIT 20";
+              ORDER BY t.fecha_creacion DESC";
     
     $stmt = $conn->prepare($query);
     if (!empty($params)) {
@@ -356,7 +342,6 @@ function asignar_ticket() {
     $usuario_asignado = intval($_POST['usuario_asignado'] ?? 0);
     $user_id = $_SESSION['user_id'];
     
-    // Guardar en variable de sesión para el trigger
     $conn->query("SET @current_user_id = $user_id");
     
     $stmt = $conn->prepare("UPDATE tickets SET id_asignado = ?, fecha_actualizacion = NOW() WHERE id = ?");

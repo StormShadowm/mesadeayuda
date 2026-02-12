@@ -1,5 +1,5 @@
-// admin.js - VERSIÓN COMPLETA CON TODAS LAS MEJORAS
-// Incluye: Filtros, Ordenamiento, Urgencia Visual, Asignación, y más
+// admin.js - VERSIÓN ULTRA FINAL
+// Incluye: Columna Asignado, Navegación con botones, Corrección errores
 
 let currentView = "tickets";
 let allTickets = [];
@@ -8,8 +8,9 @@ let currentTicketId = null;
 let sortColumn = "fecha_creacion";
 let sortDirection = "DESC";
 let updateInterval = null;
+let currentPage = 1;
+let ticketsPerPage = 20;
 
-// Inicialización
 document.addEventListener("DOMContentLoaded", () => {
   loadUserProfile();
   showView("tickets", null);
@@ -43,6 +44,7 @@ function getInitials(name) {
 
 function showView(view, event) {
   currentView = view;
+  currentPage = 1; // Reset página al cambiar vista
 
   if (event && event.target) {
     document.querySelectorAll(".btn-section").forEach((btn) => {
@@ -66,10 +68,189 @@ function showView(view, event) {
 
   if (view === "tickets") {
     loadTickets();
+  } else if (view === "create") {
+    renderCreateTicketForm();
   } else if (view === "users") {
     loadUsers();
   } else if (view === "stats") {
     loadStats();
+  }
+}
+
+// ==================== CREAR TICKET (ADMIN) ====================
+
+async function renderCreateTicketForm() {
+  const content = document.getElementById("content");
+
+  const response = await fetch("php/tickets_api.php?action=get_categories");
+  const data = await response.json();
+
+  let categoriasOptions = '<option value="">-- Seleccionar --</option>';
+  if (data.success) {
+    data.categorias.forEach((c) => {
+      categoriasOptions += `<option value="${c.nombre}">${c.nombre}</option>`;
+    });
+  }
+
+  content.innerHTML = `
+        <h4>Crear Nuevo Ticket</h4>
+        <div class="card">
+            <div class="card-body">
+                <form id="createTicketForm" onsubmit="createTicketAdmin(event)">
+                    <div class="mb-3">
+                        <label class="form-label">Título *</label>
+                        <input type="text" class="form-control" name="titulo" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Descripción *</label>
+                        <textarea class="form-control" name="descripcion" rows="5" required></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Categoría *</label>
+                                <select class="form-select" name="categoria" id="categoriaAdmin" onchange="loadSubcategoriasAdmin()" required>
+                                    ${categoriasOptions}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Subcategoría</label>
+                                <select class="form-select" name="subcategoria" id="subcategoriaAdmin">
+                                    <option value="">-- Primero selecciona categoría --</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Prioridad</label>
+                                <select class="form-select" name="prioridad">
+                                    <option value="baja">Baja</option>
+                                    <option value="media" selected>Media</option>
+                                    <option value="alta">Alta</option>
+                                    <option value="critica">Crítica</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Adjuntar Archivo (Opcional)</label>
+                        <input type="file" class="form-control" id="ticketFileAdmin">
+                        <small class="text-muted">Tamaño máximo: 50MB</small>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">📤 Crear Ticket</button>
+                    <button type="button" class="btn btn-secondary" onclick="showView('tickets', null)">Cancelar</button>
+                </form>
+            </div>
+        </div>
+    `;
+}
+
+async function loadSubcategoriasAdmin() {
+  const categoriaSelect = document.getElementById("categoriaAdmin");
+  const subcategoriaSelect = document.getElementById("subcategoriaAdmin");
+  const categoriaNombre = categoriaSelect.value;
+
+  if (!categoriaNombre) {
+    subcategoriaSelect.innerHTML =
+      '<option value="">-- Primero selecciona categoría --</option>';
+    return;
+  }
+
+  try {
+    const response = await fetch("php/tickets_api.php?action=get_categories");
+    const data = await response.json();
+
+    let categoriaId = null;
+    if (data.success) {
+      const cat = data.categorias.find((c) => c.nombre === categoriaNombre);
+      if (cat) categoriaId = cat.id;
+    }
+
+    if (!categoriaId) return;
+
+    const response2 = await fetch(
+      `php/tickets_api.php?action=get_subcategories&id_categoria=${categoriaId}`,
+    );
+    const data2 = await response2.json();
+
+    let options = '<option value="">-- Ninguna --</option>';
+    if (data2.success) {
+      data2.subcategorias.forEach((s) => {
+        options += `<option value="${s.nombre}">${s.nombre}</option>`;
+      });
+    }
+
+    subcategoriaSelect.innerHTML = options;
+  } catch (error) {
+    console.error("Error:", error);
+  }
+}
+
+async function createTicketAdmin(e) {
+  e.preventDefault();
+
+  const form = e.target;
+  const titulo = form.titulo.value;
+  const descripcion = form.descripcion.value;
+  const categoria = form.categoria.value;
+  const subcategoria = form.subcategoria.value;
+  const prioridad = form.prioridad.value;
+  const fileInput = document.getElementById("ticketFileAdmin");
+  const file = fileInput.files[0];
+
+  try {
+    const formData = new FormData();
+    formData.append("action", "create");
+    formData.append("titulo", titulo);
+    formData.append("descripcion", descripcion);
+    formData.append("categoria", categoria);
+    formData.append("subcategoria", subcategoria);
+    formData.append("prioridad", prioridad);
+
+    const response = await fetch("php/tickets_api.php", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      const ticketId = data.ticket_id;
+
+      if (file) {
+        if (file.size > 50 * 1024 * 1024) {
+          alert("⚠️ Ticket creado, pero el archivo es muy grande (máx 50MB)");
+          showView("tickets", null);
+          return;
+        }
+
+        const fileFormData = new FormData();
+        fileFormData.append("archivo", file);
+        fileFormData.append("ticket_id", ticketId);
+        fileFormData.append("tipo", "ticket");
+
+        await fetch("php/upload_file.php", {
+          method: "POST",
+          body: fileFormData,
+        });
+      }
+
+      alert("✅ Ticket creado exitosamente");
+      showView("tickets", null);
+    } else {
+      alert("❌ Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    alert("❌ Error de conexión");
   }
 }
 
@@ -98,10 +279,34 @@ async function loadTickets() {
   }
 }
 
-function renderTickets(tickets) {
+async function renderTickets(tickets) {
   const content = document.getElementById("content");
 
-  // Barra de filtros
+  const responseUsers = await fetch("php/user_api.php?action=list");
+  const dataUsers = await responseUsers.json();
+
+  let usuariosOptions = "";
+  if (dataUsers.success) {
+    dataUsers.usuarios.forEach((u) => {
+      usuariosOptions += `<option value="${u.id}">${u.nombre_completo}</option>`;
+    });
+  }
+
+  const responseCat = await fetch("php/tickets_api.php?action=get_categories");
+  const dataCat = await responseCat.json();
+
+  let categoriasOptions = "";
+  if (dataCat.success) {
+    dataCat.categorias.forEach((c) => {
+      categoriasOptions += `<option value="${c.nombre}">${c.nombre}</option>`;
+    });
+  }
+
+  const totalPages = Math.ceil(tickets.length / ticketsPerPage);
+  const startIndex = (currentPage - 1) * ticketsPerPage;
+  const endIndex = startIndex + ticketsPerPage;
+  const ticketsToShow = tickets.slice(startIndex, endIndex);
+
   let html = `
         <div class="card mb-3">
             <div class="card-body">
@@ -112,11 +317,17 @@ function renderTickets(tickets) {
                         <input type="text" id="filtro_busqueda" class="form-control form-control-sm" placeholder="ID, usuario, email...">
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label small">Fecha Desde</label>
+                        <label class="form-label small">Usuarios</label>
+                        <select id="filtro_usuarios" class="form-select form-select-sm" multiple size="1">
+                            ${usuariosOptions}
+                        </select>
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label small">Desde</label>
                         <input type="date" id="filtro_fecha_desde" class="form-control form-control-sm">
                     </div>
-                    <div class="col-md-2">
-                        <label class="form-label small">Fecha Hasta</label>
+                    <div class="col-md-1">
+                        <label class="form-label small">Hasta</label>
                         <input type="date" id="filtro_fecha_hasta" class="form-control form-control-sm">
                     </div>
                     <div class="col-md-2">
@@ -129,7 +340,7 @@ function renderTickets(tickets) {
                             <option value="Cerrado">Cerrado</option>
                         </select>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-1">
                         <label class="form-label small">Prioridad</label>
                         <select id="filtro_prioridad" class="form-select form-select-sm">
                             <option value="">Todas</option>
@@ -140,22 +351,26 @@ function renderTickets(tickets) {
                         </select>
                     </div>
                     <div class="col-md-1">
+                        <label class="form-label small">Categoría</label>
+                        <select id="filtro_categoria" class="form-select form-select-sm">
+                            <option value="">Todas</option>
+                            ${categoriasOptions}
+                        </select>
+                    </div>
+                    <div class="col-md-1">
                         <label class="form-label small">Adjunto</label>
                         <select id="filtro_adjunto" class="form-select form-select-sm">
                             <option value="">Todos</option>
-                            <option value="Si">Sí</option>
+                            <option value="Sí">Sí</option>
                             <option value="No">No</option>
                         </select>
                     </div>
                 </div>
                 <div class="row g-2 mt-2">
                     <div class="col-md-12">
-                        <button class="btn btn-primary btn-sm" onclick="aplicarFiltros()">
-                            🔍 Filtrar
-                        </button>
-                        <button class="btn btn-secondary btn-sm" onclick="limpiarFiltros()">
-                            🔄 Limpiar
-                        </button>
+                        <button class="btn btn-primary btn-sm" onclick="aplicarFiltros()">🔍 Filtrar</button>
+                        <button class="btn btn-secondary btn-sm" onclick="limpiarFiltros()">🔄 Limpiar</button>
+                        <button class="btn btn-success btn-sm" onclick="exportarExcel()">📥 Exportar Excel</button>
                     </div>
                 </div>
             </div>
@@ -163,11 +378,20 @@ function renderTickets(tickets) {
         
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h4>Gestión de Tickets (${tickets.length})</h4>
-            <small class="text-muted">Mostrando máximo 20 tickets</small>
+            <div class="d-flex gap-2 align-items-center">
+                <small class="text-muted">Mostrando ${startIndex + 1}-${Math.min(endIndex, tickets.length)} de ${tickets.length}</small>
+                <button class="btn btn-sm btn-outline-primary" onclick="previousPage()" ${currentPage === 1 ? "disabled" : ""}>
+                    ◀ Anterior
+                </button>
+                <span class="badge bg-primary">${currentPage} / ${totalPages}</span>
+                <button class="btn btn-sm btn-outline-primary" onclick="nextPage()" ${currentPage === totalPages ? "disabled" : ""}>
+                    Siguiente ▶
+                </button>
+            </div>
         </div>
         
         <div class="table-responsive">
-            <table class="table table-hover">
+            <table class="table table-hover table-sm">
                 <thead class="table-light">
                     <tr>
                         <th style="cursor:pointer" onclick="sortTickets('id')">
@@ -177,6 +401,7 @@ function renderTickets(tickets) {
                             Título ${sortColumn === "titulo" ? (sortDirection === "ASC" ? "▲" : "▼") : ""}
                         </th>
                         <th>Usuario</th>
+                        <th>Asignado A</th>
                         <th style="cursor:pointer" onclick="sortTickets('estado')">
                             Estado ${sortColumn === "estado" ? (sortDirection === "ASC" ? "▲" : "▼") : ""}
                         </th>
@@ -195,15 +420,25 @@ function renderTickets(tickets) {
                 <tbody id="ticketsTableBody">
     `;
 
-  tickets.forEach((ticket) => {
+  ticketsToShow.forEach((ticket) => {
     html += renderTicketRow(ticket);
   });
 
-  html += `
-                </tbody>
-            </table>
-        </div>
-    `;
+  html += "</tbody></table></div>";
+
+  if (totalPages > 1) {
+    html += `
+            <div class="d-flex justify-content-center align-items-center gap-2 mt-3">
+                <button class="btn btn-sm btn-outline-primary" onclick="previousPage()" ${currentPage === 1 ? "disabled" : ""}>
+                    ◀ Anterior
+                </button>
+                <span>Página ${currentPage} de ${totalPages}</span>
+                <button class="btn btn-sm btn-outline-primary" onclick="nextPage()" ${currentPage === totalPages ? "disabled" : ""}>
+                    Siguiente ▶
+                </button>
+            </div>
+        `;
+  }
 
   content.innerHTML = html;
 }
@@ -225,41 +460,61 @@ function renderTicketRow(ticket) {
       critica: "bg-danger",
     }[ticket.prioridad] || "bg-secondary";
 
-  // Calcular color de fondo según urgencia
-  const urgencia = ticket.urgencia_porcentaje || 0;
-  let bgColor = "transparent";
+  const minutos = ticket.minutos_abierto || 0;
+  const urgencia = Math.min(100, (minutos / 60) * 100);
+
+  let bgColor = "#ffffff";
   if (urgencia >= 100) {
-    bgColor = "#ffcccc"; // Rojo
+    bgColor = "#ffcccc";
   } else if (urgencia >= 66) {
-    bgColor = "#ffe6cc"; // Naranja
+    bgColor = "#ffe6cc";
   } else if (urgencia >= 33) {
-    bgColor = "#fff9cc"; // Amarillo
+    bgColor = "#fff9cc";
   }
 
-  const minutos = ticket.minutos_abierto || 0;
   const tiempoTexto =
     minutos < 60
-      ? `${minutos} min`
-      : `${Math.floor(minutos / 60)}h ${minutos % 60}m`;
+      ? `${Math.floor(minutos)} min`
+      : `${Math.floor(minutos / 60)}h ${Math.floor(minutos % 60)}m`;
+
+  const asignadoA = ticket.nombre_asignado
+    ? `<span class="badge bg-info text-dark">${escapeHtml(ticket.nombre_asignado)}</span>`
+    : '<span class="text-muted small">Sin asignar</span>';
 
   return `
-        <tr style="background-color: ${bgColor};" data-ticket-id="${ticket.id}">
+        <tr style="background-color: ${bgColor}; transition: background-color 0.3s;" data-ticket-id="${ticket.id}" data-minutos="${minutos}">
             <td><strong>#${ticket.id}</strong></td>
             <td>${escapeHtml(ticket.titulo)}</td>
-            <td>${escapeHtml(ticket.nombre_usuario || "Desconocido")}</td>
+            <td><small>${escapeHtml(ticket.nombre_usuario || "Desconocido")}</small></td>
+            <td>${asignadoA}</td>
             <td><span class="badge ${estadoClass}">${ticket.estado}</span></td>
             <td><span class="badge ${prioridadClass}">${ticket.prioridad.toUpperCase()}</span></td>
-            <td>${escapeHtml(ticket.categoria || "-")}</td>
-            <td class="text-center">${ticket.tiene_adjunto || "No"}</td>
-            <td><small>⏱️ ${tiempoTexto}</small></td>
+            <td><small>${escapeHtml(ticket.categoria || "-")}</small></td>
+            <td class="text-center"><small>${ticket.tiene_adjunto || "No"}</small></td>
+            <td class="ticket-tiempo"><small>⏱️ ${tiempoTexto}</small></td>
             <td><small>${formatDate(ticket.fecha_creacion)}</small></td>
             <td>
-                <button class="btn btn-sm btn-primary" onclick="viewTicketDetail(${ticket.id})">
-                    👁️ Ver
-                </button>
+                <button class="btn btn-sm btn-primary" onclick="viewTicketDetail(${ticket.id})">👁️</button>
             </td>
         </tr>
     `;
+}
+
+function previousPage() {
+  if (currentPage > 1) {
+    currentPage--;
+    renderTickets(allTickets);
+    window.scrollTo(0, 0);
+  }
+}
+
+function nextPage() {
+  const totalPages = Math.ceil(allTickets.length / ticketsPerPage);
+  if (currentPage < totalPages) {
+    currentPage++;
+    renderTickets(allTickets);
+    window.scrollTo(0, 0);
+  }
 }
 
 function sortTickets(column) {
@@ -274,7 +529,6 @@ function sortTickets(column) {
     let valA = a[column];
     let valB = b[column];
 
-    // Convertir a números si es ID o minutos
     if (column === "id" || column === "minutos_abierto") {
       valA = parseInt(valA) || 0;
       valB = parseInt(valB) || 0;
@@ -292,19 +546,26 @@ function sortTickets(column) {
 
 async function aplicarFiltros() {
   const busqueda = document.getElementById("filtro_busqueda").value;
+  const usuariosSelect = document.getElementById("filtro_usuarios");
+  const usuarios = Array.from(usuariosSelect.selectedOptions).map(
+    (opt) => opt.value,
+  );
   const fecha_desde = document.getElementById("filtro_fecha_desde").value;
   const fecha_hasta = document.getElementById("filtro_fecha_hasta").value;
   const estado = document.getElementById("filtro_estado").value;
   const prioridad = document.getElementById("filtro_prioridad").value;
+  const categoria = document.getElementById("filtro_categoria").value;
   const adjunto = document.getElementById("filtro_adjunto").value;
 
   const formData = new FormData();
   formData.append("action", "list_filtered");
   formData.append("busqueda", busqueda);
+  usuarios.forEach((u) => formData.append("usuarios[]", u));
   formData.append("fecha_desde", fecha_desde);
   formData.append("fecha_hasta", fecha_hasta);
   formData.append("estado", estado);
   formData.append("prioridad", prioridad);
+  formData.append("categoria", categoria);
   formData.append("tiene_adjunto", adjunto);
 
   try {
@@ -317,6 +578,7 @@ async function aplicarFiltros() {
 
     if (data.success) {
       allTickets = data.tickets;
+      currentPage = 1;
       renderTickets(allTickets);
     }
   } catch (error) {
@@ -326,13 +588,36 @@ async function aplicarFiltros() {
 
 function limpiarFiltros() {
   document.getElementById("filtro_busqueda").value = "";
+  document.getElementById("filtro_usuarios").selectedIndex = -1;
   document.getElementById("filtro_fecha_desde").value = "";
   document.getElementById("filtro_fecha_hasta").value = "";
   document.getElementById("filtro_estado").value = "";
   document.getElementById("filtro_prioridad").value = "";
+  document.getElementById("filtro_categoria").value = "";
   document.getElementById("filtro_adjunto").value = "";
+  currentPage = 1;
   loadTickets();
 }
+
+async function exportarExcel() {
+  const fecha_desde = document.getElementById("filtro_fecha_desde").value;
+  const fecha_hasta = document.getElementById("filtro_fecha_hasta").value;
+  const estado = document.getElementById("filtro_estado").value;
+  const prioridad = document.getElementById("filtro_prioridad").value;
+  const categoria = document.getElementById("filtro_categoria").value;
+
+  const params = new URLSearchParams({
+    fecha_desde,
+    fecha_hasta,
+    estado,
+    prioridad,
+    categoria,
+  });
+
+  window.open(`php/exportar_excel.php?${params.toString()}`, "_blank");
+}
+
+// Continúa en siguiente mensaje debido al límite...
 
 async function viewTicketDetail(ticketId) {
   currentTicketId = ticketId;
@@ -368,7 +653,6 @@ async function showTicketModal(ticket) {
     `
     : "";
 
-  // Obtener lista de admins para asignar
   const responseAdmins = await fetch(
     "php/tickets_api.php?action=get_admin_users",
   );
@@ -378,15 +662,15 @@ async function showTicketModal(ticket) {
   if (dataAdmins.success) {
     dataAdmins.usuarios.forEach((u) => {
       const selected = ticket.id_asignado == u.id ? "selected" : "";
-      adminsOptions += `<option value="${u.id}" ${selected}>${u.nombre} (${u.usuario})</option>`;
+      adminsOptions += `<option value="${u.id}" ${selected}>${u.nombre}</option>`;
     });
   }
 
   const minutos = ticket.minutos_abierto || 0;
   const tiempoTexto =
     minutos < 60
-      ? `${minutos} minutos`
-      : `${Math.floor(minutos / 60)} horas ${minutos % 60} minutos`;
+      ? `${Math.floor(minutos)} minutos`
+      : `${Math.floor(minutos / 60)} horas ${Math.floor(minutos % 60)} minutos`;
 
   modalContent.innerHTML = `
         <div class="mb-3">
@@ -423,15 +707,15 @@ async function showTicketModal(ticket) {
         <hr>
         
         <div class="row mb-3">
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <label class="form-label"><strong>Asignar a:</strong></label>
                 <select class="form-select form-select-sm" onchange="asignarTicket(${ticket.id}, this.value)">
                     ${adminsOptions}
                 </select>
             </div>
             
-            <div class="col-md-4">
-                <label class="form-label"><strong>Estado:</strong></label>
+            <div class="col-md-3">
+                <label class="form-label"><strong>Cambiar Estado:</strong></label>
                 <select class="form-select form-select-sm" onchange="updateTicketStatus(${ticket.id}, this.value)">
                     <option value="">--</option>
                     <option value="Abierto" ${ticket.estado === "Abierto" ? "selected" : ""}>Abierto</option>
@@ -441,7 +725,7 @@ async function showTicketModal(ticket) {
                 </select>
             </div>
             
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <label class="form-label"><strong>Prioridad:</strong></label>
                 <select class="form-select form-select-sm" onchange="updateTicketPriority(${ticket.id}, this.value)">
                     <option value="">--</option>
@@ -458,9 +742,7 @@ async function showTicketModal(ticket) {
         <div class="mb-3">
             <label class="form-label"><strong>Adjuntar Archivo:</strong></label>
             <input type="file" id="ticketFile" class="form-control form-control-sm">
-            <button class="btn btn-secondary btn-sm mt-2" onclick="uploadTicketFile(${ticket.id})">
-                📤 Subir
-            </button>
+            <button class="btn btn-secondary btn-sm mt-2" onclick="uploadTicketFile(${ticket.id})">📤 Subir</button>
         </div>
         
         <hr>
@@ -734,9 +1016,6 @@ async function loadUsers() {
 
 function renderUsers(users) {
   const content = document.getElementById("content");
-  const miRol = parseInt(
-    document.documentElement.getAttribute("data-user-role") || "4",
-  );
 
   let html = `
         <h4 class="mb-3">Usuarios (${users.length})</h4>
@@ -748,6 +1027,8 @@ function renderUsers(users) {
                         <th>Nombre</th>
                         <th>Usuario</th>
                         <th>Email</th>
+                        <th>Teléfono</th>
+                        <th>Área</th>
                         <th>Rol</th>
                         <th>Estado</th>
                         <th>Acciones</th>
@@ -759,7 +1040,6 @@ function renderUsers(users) {
   users.forEach((u) => {
     const badge = u.estado == 1 ? "bg-success" : "bg-secondary";
     const estado = u.estado == 1 ? "Activo" : "Inactivo";
-    const puedeEditar = miRol <= 2 && u.id_rol_admin >= miRol;
 
     html += `
             <tr>
@@ -767,10 +1047,12 @@ function renderUsers(users) {
                 <td>${escapeHtml(u.nombre_completo)}</td>
                 <td><code>${escapeHtml(u.usuario)}</code></td>
                 <td>${escapeHtml(u.email || "-")}</td>
-                <td>${escapeHtml(u.rol)}</td>
+                <td>${escapeHtml(u.telefono || "-")}</td>
+                <td>${escapeHtml(u.area || "-")}</td>
+                <td>${escapeHtml(u.rol_legible)}</td>
                 <td><span class="badge ${badge}">${estado}</span></td>
                 <td>
-                    ${puedeEditar ? `<button class="btn btn-sm btn-warning" onclick="editUser(${u.id})">Editar</button>` : "-"}
+                    <button class="btn btn-sm btn-warning" onclick="editUser(${u.id})">✏️ Editar</button>
                 </td>
             </tr>
         `;
@@ -778,6 +1060,164 @@ function renderUsers(users) {
 
   html += "</tbody></table></div>";
   content.innerHTML = html;
+}
+
+async function editUser(userId) {
+  try {
+    const response = await fetch(`php/user_api.php?action=get&id=${userId}`);
+    const data = await response.json();
+
+    if (data.success) {
+      showEditUserModal(data.user);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+  }
+}
+
+async function showEditUserModal(user) {
+  const responseAreas = await fetch("php/user_api.php?action=get_areas");
+  const dataAreas = await responseAreas.json();
+
+  let areasOptions = '<option value="">-- Sin área --</option>';
+  if (dataAreas.success) {
+    dataAreas.areas.forEach((a) => {
+      const selected = user.id_area == a.id ? "selected" : "";
+      areasOptions += `<option value="${a.id}" ${selected}>${a.nombre}</option>`;
+    });
+  }
+
+  const modalBody = document.getElementById("editUserModalBody");
+
+  modalBody.innerHTML = `
+        <form id="editUserForm" onsubmit="saveUserEdit(event, ${user.id})">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Primer Nombre *</label>
+                        <input type="text" class="form-control" name="primer_nombre" value="${escapeHtml(user.primer_nombre)}" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Segundo Nombre</label>
+                        <input type="text" class="form-control" name="segundo_nombre" value="${escapeHtml(user.segundo_nombre || "")}">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Primer Apellido *</label>
+                        <input type="text" class="form-control" name="primer_apellido" value="${escapeHtml(user.primer_apellido)}" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Segundo Apellido</label>
+                        <input type="text" class="form-control" name="segundo_apellido" value="${escapeHtml(user.segundo_apellido || "")}">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Email *</label>
+                        <input type="email" class="form-control" name="email" value="${escapeHtml(user.email || "")}" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Teléfono</label>
+                        <input type="text" class="form-control" name="telefono" value="${escapeHtml(user.telefono || "")}">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">Área</label>
+                        <select class="form-select" name="id_area">
+                            ${areasOptions}
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">Estado</label>
+                        <select class="form-select" name="estado">
+                            <option value="1" ${user.estado == 1 ? "selected" : ""}>Activo</option>
+                            <option value="0" ${user.estado == 0 ? "selected" : ""}>Inactivo</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">Rol</label>
+                        <select class="form-select" name="id_rol_admin">
+                            <option value="1" ${user.id_rol_admin == 1 ? "selected" : ""}>Admin Superior</option>
+                            <option value="2" ${user.id_rol_admin == 2 ? "selected" : ""}>Admin Intermedio</option>
+                            <option value="3" ${user.id_rol_admin == 3 ? "selected" : ""}>Técnico</option>
+                            <option value="4" ${user.id_rol_admin == 4 ? "selected" : ""}>Usuario</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Nueva Contraseña (dejar vacío para no cambiar)</label>
+                <input type="password" class="form-control" name="password" autocomplete="new-password">
+            </div>
+            
+            <button type="submit" class="btn btn-primary">💾 Guardar Cambios</button>
+        </form>
+    `;
+
+  const modal = new bootstrap.Modal(document.getElementById("editUserModal"));
+  modal.show();
+}
+
+async function saveUserEdit(e, userId) {
+  e.preventDefault();
+
+  const form = e.target;
+  const formData = new FormData(form);
+  formData.append("action", "update");
+  formData.append("id", userId);
+
+  try {
+    const response = await fetch("php/user_api.php", {
+      method: "POST",
+      body: formData,
+    });
+
+    const text = await response.text();
+    let data;
+
+    try {
+      data = JSON.parse(text);
+    } catch (parseError) {
+      console.error("Error parsing JSON:", text);
+      alert("❌ Error: Respuesta inválida del servidor");
+      return;
+    }
+
+    if (data.success) {
+      alert("✅ Usuario actualizado correctamente");
+      bootstrap.Modal.getInstance(
+        document.getElementById("editUserModal"),
+      ).hide();
+      loadUsers();
+    } else {
+      alert("❌ Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    alert("❌ Error de conexión");
+  }
 }
 
 // ==================== ESTADÍSTICAS ====================
@@ -803,7 +1243,10 @@ function renderStats(s) {
   const content = document.getElementById("content");
 
   content.innerHTML = `
-        <h4 class="mb-4">Estadísticas</h4>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4>Estadísticas del Sistema</h4>
+            <button class="btn btn-success" onclick="exportarExcel()">📥 Descargar Reporte Excel</button>
+        </div>
         <div class="row g-3">
             <div class="col-md-2">
                 <div class="card text-center">
@@ -857,45 +1300,50 @@ function renderStats(s) {
     `;
 }
 
-// ==================== ACTUALIZACIÓN AUTOMÁTICA ====================
+// ==================== ACTUALIZACIÓN EN TIEMPO REAL ====================
 
 function startAutoUpdate() {
-  // Actualizar cada 30 segundos
   updateInterval = setInterval(() => {
-    if (currentView === "tickets" && allTickets.length > 0) {
-      updateTicketTimes();
+    if (currentView === "tickets") {
+      updateTicketTimesRealTime();
     }
-  }, 30000); // 30 segundos
+  }, 1000);
 }
 
-function updateTicketTimes() {
-  allTickets.forEach((ticket) => {
-    ticket.minutos_abierto = (ticket.minutos_abierto || 0) + 0.5; // 30 segundos
-    ticket.urgencia_porcentaje = Math.min(
-      100,
-      (ticket.minutos_abierto / 60) * 100,
-    );
+function updateTicketTimesRealTime() {
+  const rows = document.querySelectorAll(
+    "#ticketsTableBody tr[data-ticket-id]",
+  );
 
-    const row = document.querySelector(`tr[data-ticket-id="${ticket.id}"]`);
-    if (row) {
-      const urgencia = ticket.urgencia_porcentaje;
-      let bgColor = "transparent";
-      if (urgencia >= 100) bgColor = "#ffcccc";
-      else if (urgencia >= 66) bgColor = "#ffe6cc";
-      else if (urgencia >= 33) bgColor = "#fff9cc";
+  rows.forEach((row) => {
+    const ticketId = row.getAttribute("data-ticket-id");
+    const minutosActual = parseFloat(row.getAttribute("data-minutos") || 0);
+    const nuevosMinutos = minutosActual + 1 / 60;
 
-      row.style.backgroundColor = bgColor;
+    row.setAttribute("data-minutos", nuevosMinutos);
 
-      // Actualizar tiempo
-      const minutos = Math.floor(ticket.minutos_abierto);
-      const tiempoTexto =
-        minutos < 60
-          ? `${minutos} min`
-          : `${Math.floor(minutos / 60)}h ${minutos % 60}m`;
-      const tiempoCell = row.querySelector("td:nth-child(8)");
-      if (tiempoCell) {
-        tiempoCell.innerHTML = `<small>⏱️ ${tiempoTexto}</small>`;
-      }
+    const urgencia = Math.min(100, (nuevosMinutos / 60) * 100);
+
+    let bgColor = "#ffffff";
+    if (urgencia >= 100) {
+      bgColor = "#ffcccc";
+    } else if (urgencia >= 66) {
+      bgColor = "#ffe6cc";
+    } else if (urgencia >= 33) {
+      bgColor = "#fff9cc";
+    }
+
+    row.style.backgroundColor = bgColor;
+
+    const minutos = Math.floor(nuevosMinutos);
+    const tiempoTexto =
+      minutos < 60
+        ? `${minutos} min`
+        : `${Math.floor(minutos / 60)}h ${Math.floor(minutos % 60)}m`;
+
+    const tiempoCell = row.querySelector(".ticket-tiempo");
+    if (tiempoCell) {
+      tiempoCell.innerHTML = `<small>⏱️ ${tiempoTexto}</small>`;
     }
   });
 }
@@ -926,7 +1374,6 @@ function escapeHtml(text) {
   return text.toString().replace(/[&<>"']/g, (m) => map[m]);
 }
 
-// Limpiar intervalo al salir
 window.addEventListener("beforeunload", () => {
   if (updateInterval) {
     clearInterval(updateInterval);

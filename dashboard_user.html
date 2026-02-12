@@ -19,9 +19,12 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
       <div class="container-fluid">
         <a class="navbar-brand fw-bold" href="#">🎫 Mesa de Ayuda</a>
-        <a href="php/logout.php" class="btn btn-outline-light btn-sm"
-          >Cerrar Sesión</a
-        >
+        <div class="d-flex align-items-center gap-3">
+          <span class="text-white" id="userName">Usuario</span>
+          <a href="php/logout.php" class="btn btn-outline-light btn-sm"
+            >Cerrar Sesión</a
+          >
+        </div>
       </div>
     </nav>
 
@@ -32,16 +35,25 @@
         <div class="col-md-2">
           <div class="list-group">
             <button
+              class="list-group-item list-group-item-action active"
+              data-view="mytickets"
+              onclick="showView('mytickets')"
+            >
+              📋 Mis Tickets
+            </button>
+            <button
               class="list-group-item list-group-item-action"
-              onclick="show('create')"
+              data-view="create"
+              onclick="showView('create')"
             >
               ➕ Crear Ticket
             </button>
             <button
-              class="list-group-item list-group-item-action active"
-              onclick="show('mytickets')"
+              class="list-group-item list-group-item-action"
+              data-view="stats"
+              onclick="showView('stats')"
             >
-              📋 Mis Tickets
+              📊 Estadísticas
             </button>
           </div>
         </div>

@@ -1,15 +1,17 @@
-// user.js - VERSIÓN COMPLETA PARA USUARIOS
-// Incluye: Vista de tabla, ordenamiento, cierre con motivo, categorías dinámicas
+// user.js - VERSIÓN CORREGIDA Y MEJORADA
+// Corrige errores y agrega nuevas funcionalidades
 
 let currentView = "mytickets";
 let userTickets = [];
 let sortColumn = "fecha_creacion";
 let sortDirection = "DESC";
 let updateInterval = null;
+let currentPage = 1;
+let ticketsPerPage = 20;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadUserProfile();
-  show("mytickets");
+  showView("mytickets");
   startAutoUpdate();
 });
 
@@ -20,27 +22,34 @@ async function loadUserProfile() {
 
     if (data.success) {
       const fullName = data.user.nombre_completo;
-      document.getElementById("userName").textContent = fullName;
+      const userNameElement = document.getElementById("userName");
+      if (userNameElement) {
+        userNameElement.textContent = fullName;
+      }
     }
   } catch (error) {
     console.error("Error:", error);
   }
 }
 
-function show(view) {
+function showView(view) {
   currentView = view;
-  const content = document.getElementById("content");
 
-  // Actualizar botones activos
-  document.querySelectorAll(".list-group-item").forEach((btn) => {
+  // Actualizar botones del menú
+  const buttons = document.querySelectorAll(".list-group-item");
+  buttons.forEach((btn) => {
     btn.classList.remove("active");
+    if (btn.getAttribute("data-view") === view) {
+      btn.classList.add("active");
+    }
   });
-  event.target.classList.add("active");
 
   if (view === "create") {
     renderCreateForm();
   } else if (view === "mytickets") {
     loadMyTickets();
+  } else if (view === "stats") {
+    loadStats();
   }
 }
 
@@ -114,7 +123,7 @@ async function renderCreateForm() {
                     </div>
                     
                     <button type="submit" class="btn btn-primary">📤 Crear Ticket</button>
-                    <button type="button" class="btn btn-secondary" onclick="show('mytickets')">Cancelar</button>
+                    <button type="button" class="btn btn-secondary" onclick="showView('mytickets')">Cancelar</button>
                 </form>
             </div>
         </div>
@@ -132,32 +141,34 @@ async function loadSubcategorias() {
     return;
   }
 
-  // Buscar ID de categoría
-  const response = await fetch("php/tickets_api.php?action=get_categories");
-  const data = await response.json();
+  try {
+    const response = await fetch("php/tickets_api.php?action=get_categories");
+    const data = await response.json();
 
-  let categoriaId = null;
-  if (data.success) {
-    const cat = data.categorias.find((c) => c.nombre === categoriaNombre);
-    if (cat) categoriaId = cat.id;
+    let categoriaId = null;
+    if (data.success) {
+      const cat = data.categorias.find((c) => c.nombre === categoriaNombre);
+      if (cat) categoriaId = cat.id;
+    }
+
+    if (!categoriaId) return;
+
+    const response2 = await fetch(
+      `php/tickets_api.php?action=get_subcategories&id_categoria=${categoriaId}`,
+    );
+    const data2 = await response2.json();
+
+    let options = '<option value="">-- Ninguna --</option>';
+    if (data2.success) {
+      data2.subcategorias.forEach((s) => {
+        options += `<option value="${s.nombre}">${s.nombre}</option>`;
+      });
+    }
+
+    subcategoriaSelect.innerHTML = options;
+  } catch (error) {
+    console.error("Error:", error);
   }
-
-  if (!categoriaId) return;
-
-  // Cargar subcategorías
-  const response2 = await fetch(
-    `php/tickets_api.php?action=get_subcategories&id_categoria=${categoriaId}`,
-  );
-  const data2 = await response2.json();
-
-  let options = '<option value="">-- Ninguna --</option>';
-  if (data2.success) {
-    data2.subcategorias.forEach((s) => {
-      options += `<option value="${s.nombre}">${s.nombre}</option>`;
-    });
-  }
-
-  subcategoriaSelect.innerHTML = options;
 }
 
 async function createTicketWithFile(e) {
@@ -173,7 +184,6 @@ async function createTicketWithFile(e) {
   const file = fileInput.files[0];
 
   try {
-    // Crear ticket
     const formData = new FormData();
     formData.append("action", "create");
     formData.append("titulo", titulo);
@@ -187,16 +197,24 @@ async function createTicketWithFile(e) {
       body: formData,
     });
 
-    const data = await response.json();
+    const text = await response.text();
+    let data;
+
+    try {
+      data = JSON.parse(text);
+    } catch (parseError) {
+      console.error("Error parsing JSON:", text);
+      alert("❌ Error: Respuesta inválida del servidor");
+      return;
+    }
 
     if (data.success) {
       const ticketId = data.ticket_id;
 
-      // Subir archivo si existe
       if (file) {
         if (file.size > 50 * 1024 * 1024) {
           alert("⚠️ Ticket creado, pero el archivo es muy grande (máx 50MB)");
-          show("mytickets");
+          showView("mytickets");
           return;
         }
 
@@ -212,7 +230,7 @@ async function createTicketWithFile(e) {
       }
 
       alert("✅ Ticket creado exitosamente");
-      show("mytickets");
+      showView("mytickets");
     } else {
       alert("❌ Error: " + data.message);
     }
@@ -231,7 +249,17 @@ async function loadMyTickets() {
 
   try {
     const response = await fetch("php/tickets_api.php?action=list");
-    const data = await response.json();
+    const text = await response.text();
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseError) {
+      console.error("Error parsing JSON:", text);
+      content.innerHTML =
+        '<div class="alert alert-danger">Error: Respuesta inválida del servidor</div>';
+      return;
+    }
 
     if (data.success) {
       userTickets = data.tickets;
@@ -255,16 +283,25 @@ function renderMyTickets(tickets) {
             <div class="text-center py-5">
                 <h5>No tienes tickets aún</h5>
                 <p class="text-muted">Crea tu primer ticket para comenzar</p>
-                <button class="btn btn-primary" onclick="show('create')">➕ Crear Ticket</button>
+                <button class="btn btn-primary" onclick="showView('create')">➕ Crear Ticket</button>
             </div>
         `;
     return;
   }
 
+  // Calcular paginación
+  const totalPages = Math.ceil(tickets.length / ticketsPerPage);
+  const startIndex = (currentPage - 1) * ticketsPerPage;
+  const endIndex = startIndex + ticketsPerPage;
+  const ticketsToShow = tickets.slice(startIndex, endIndex);
+
   let html = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h4>Mis Tickets (${tickets.length})</h4>
-            <button class="btn btn-success" onclick="show('create')">➕ Nuevo Ticket</button>
+            <div class="d-flex gap-2 align-items-center">
+                <small class="text-muted">Mostrando ${startIndex + 1}-${Math.min(endIndex, tickets.length)} de ${tickets.length}</small>
+                <button class="btn btn-success btn-sm" onclick="showView('create')">➕ Nuevo</button>
+            </div>
         </div>
         
         <div class="table-responsive">
@@ -295,7 +332,7 @@ function renderMyTickets(tickets) {
                 <tbody id="ticketsTableBody">
     `;
 
-  tickets.forEach((ticket) => {
+  ticketsToShow.forEach((ticket) => {
     html += renderTicketRow(ticket);
   });
 
@@ -305,7 +342,23 @@ function renderMyTickets(tickets) {
         </div>
     `;
 
+  // Paginación
+  if (totalPages > 1) {
+    html += '<nav><ul class="pagination">';
+    for (let i = 1; i <= totalPages; i++) {
+      html += `<li class="page-item ${i === currentPage ? "active" : ""}">
+                <a class="page-link" href="#" onclick="changePage(${i}); return false;">${i}</a>
+            </li>`;
+    }
+    html += "</ul></nav>";
+  }
+
   content.innerHTML = html;
+}
+
+function changePage(page) {
+  currentPage = page;
+  renderMyTickets(userTickets);
 }
 
 function renderTicketRow(ticket) {
@@ -325,28 +378,33 @@ function renderTicketRow(ticket) {
       critica: "bg-danger",
     }[ticket.prioridad] || "bg-secondary";
 
-  // Color de urgencia
-  const urgencia = ticket.urgencia_porcentaje || 0;
-  let bgColor = "transparent";
-  if (urgencia >= 100) bgColor = "#ffcccc";
-  else if (urgencia >= 66) bgColor = "#ffe6cc";
-  else if (urgencia >= 33) bgColor = "#fff9cc";
-
+  // Calcular color según urgencia
   const minutos = ticket.minutos_abierto || 0;
+  const urgencia = Math.min(100, (minutos / 60) * 100);
+
+  let bgColor = "#ffffff";
+  if (urgencia >= 100) {
+    bgColor = "#ffcccc"; // Rojo
+  } else if (urgencia >= 66) {
+    bgColor = "#ffe6cc"; // Naranja
+  } else if (urgencia >= 33) {
+    bgColor = "#fff9cc"; // Amarillo
+  }
+
   const tiempoTexto =
     minutos < 60
-      ? `${minutos} min`
-      : `${Math.floor(minutos / 60)}h ${minutos % 60}m`;
+      ? `${Math.floor(minutos)} min`
+      : `${Math.floor(minutos / 60)}h ${Math.floor(minutos % 60)}m`;
 
   return `
-        <tr style="background-color: ${bgColor};" data-ticket-id="${ticket.id}">
+        <tr style="background-color: ${bgColor}; transition: background-color 0.3s;" data-ticket-id="${ticket.id}" data-minutos="${minutos}">
             <td><strong>#${ticket.id}</strong></td>
             <td>${escapeHtml(ticket.titulo)}</td>
             <td><span class="badge ${estadoClass}">${ticket.estado}</span></td>
             <td><span class="badge ${prioridadClass}">${ticket.prioridad.toUpperCase()}</span></td>
             <td>${escapeHtml(ticket.categoria || "-")}</td>
             <td class="text-center">${ticket.respuestas || 0}</td>
-            <td><small>⏱️ ${tiempoTexto}</small></td>
+            <td class="ticket-tiempo"><small>⏱️ ${tiempoTexto}</small></td>
             <td><small>${formatDate(ticket.fecha_creacion)}</small></td>
             <td>
                 <button class="btn btn-sm btn-primary" onclick="viewTicket(${ticket.id})">👁️ Ver</button>
@@ -416,10 +474,9 @@ function showTicketModal(ticket) {
   const minutos = ticket.minutos_abierto || 0;
   const tiempoTexto =
     minutos < 60
-      ? `${minutos} minutos`
-      : `${Math.floor(minutos / 60)} horas ${minutos % 60} minutos`;
+      ? `${Math.floor(minutos)} minutos`
+      : `${Math.floor(minutos / 60)} horas ${Math.floor(minutos % 60)} minutos`;
 
-  // Botón de cerrar solo si está abierto o en proceso
   const botonCerrar =
     ticket.estado === "Abierto" || ticket.estado === "En Proceso"
       ? `
@@ -525,7 +582,16 @@ async function cerrarTicket(ticketId) {
       body: formData,
     });
 
-    const data = await response.json();
+    const text = await response.text();
+    let data;
+
+    try {
+      data = JSON.parse(text);
+    } catch (parseError) {
+      console.error("Error parsing JSON:", text);
+      alert("❌ Error: Respuesta inválida del servidor");
+      return;
+    }
 
     if (data.success) {
       alert("✅ Ticket cerrado exitosamente");
@@ -646,43 +712,114 @@ async function addCommentWithFile(ticketId) {
   }
 }
 
-// ==================== ACTUALIZACIÓN AUTOMÁTICA ====================
+// ==================== ESTADÍSTICAS ====================
+
+async function loadStats() {
+  const content = document.getElementById("content");
+  content.innerHTML =
+    '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
+
+  try {
+    const response = await fetch("php/tickets_api.php?action=stats");
+    const data = await response.json();
+
+    if (data.success) {
+      renderStats(data.stats);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+  }
+}
+
+function renderStats(s) {
+  const content = document.getElementById("content");
+
+  content.innerHTML = `
+        <h4 class="mb-4">Mis Estadísticas</h4>
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h2 class="text-primary">${s.total || 0}</h2>
+                        <p class="text-muted mb-0">Total</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h2 class="text-info">${s.abiertos || 0}</h2>
+                        <p class="text-muted mb-0">Abiertos</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h2 class="text-warning">${s.en_proceso || 0}</h2>
+                        <p class="text-muted mb-0">En Proceso</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h2 class="text-success">${s.resueltos || 0}</h2>
+                        <p class="text-muted mb-0">Resueltos</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// ==================== ACTUALIZACIÓN EN TIEMPO REAL ====================
 
 function startAutoUpdate() {
   updateInterval = setInterval(() => {
-    if (currentView === "mytickets" && userTickets.length > 0) {
-      updateTicketTimes();
+    if (currentView === "mytickets") {
+      updateTicketTimesRealTime();
     }
-  }, 30000); // 30 segundos
+  }, 1000); // Actualizar cada segundo
 }
 
-function updateTicketTimes() {
-  userTickets.forEach((ticket) => {
-    ticket.minutos_abierto = (ticket.minutos_abierto || 0) + 0.5;
-    ticket.urgencia_porcentaje = Math.min(
-      100,
-      (ticket.minutos_abierto / 60) * 100,
-    );
+function updateTicketTimesRealTime() {
+  const rows = document.querySelectorAll(
+    "#ticketsTableBody tr[data-ticket-id]",
+  );
 
-    const row = document.querySelector(`tr[data-ticket-id="${ticket.id}"]`);
-    if (row) {
-      const urgencia = ticket.urgencia_porcentaje;
-      let bgColor = "transparent";
-      if (urgencia >= 100) bgColor = "#ffcccc";
-      else if (urgencia >= 66) bgColor = "#ffe6cc";
-      else if (urgencia >= 33) bgColor = "#fff9cc";
+  rows.forEach((row) => {
+    const ticketId = row.getAttribute("data-ticket-id");
+    const minutosActual = parseFloat(row.getAttribute("data-minutos") || 0);
+    const nuevosMinutos = minutosActual + 1 / 60; // Incrementar por segundo
 
-      row.style.backgroundColor = bgColor;
+    row.setAttribute("data-minutos", nuevosMinutos);
 
-      const minutos = Math.floor(ticket.minutos_abierto);
-      const tiempoTexto =
-        minutos < 60
-          ? `${minutos} min`
-          : `${Math.floor(minutos / 60)}h ${minutos % 60}m`;
-      const tiempoCell = row.querySelector("td:nth-child(7)");
-      if (tiempoCell) {
-        tiempoCell.innerHTML = `<small>⏱️ ${tiempoTexto}</small>`;
-      }
+    // Calcular urgencia
+    const urgencia = Math.min(100, (nuevosMinutos / 60) * 100);
+
+    // Actualizar color
+    let bgColor = "#ffffff";
+    if (urgencia >= 100) {
+      bgColor = "#ffcccc";
+    } else if (urgencia >= 66) {
+      bgColor = "#ffe6cc";
+    } else if (urgencia >= 33) {
+      bgColor = "#fff9cc";
+    }
+
+    row.style.backgroundColor = bgColor;
+
+    // Actualizar texto de tiempo
+    const minutos = Math.floor(nuevosMinutos);
+    const tiempoTexto =
+      minutos < 60
+        ? `${minutos} min`
+        : `${Math.floor(minutos / 60)}h ${Math.floor(minutos % 60)}m`;
+
+    const tiempoCell = row.querySelector(".ticket-tiempo");
+    if (tiempoCell) {
+      tiempoCell.innerHTML = `<small>⏱️ ${tiempoTexto}</small>`;
     }
   });
 }

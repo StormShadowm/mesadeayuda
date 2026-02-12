@@ -1,4 +1,6 @@
-/* Estilos Personalizados - Mesa de Ayuda */
+/* =======================================================
+   ESTILOS MESA DE AYUDA - VERSIÓN TICKETS TIPO TARJETA
+   ======================================================= */
 
 :root {
     --primary: #667eea;
@@ -6,15 +8,20 @@
     --success: #48bb78;
     --danger: #f56565;
     --warning: #ed8936;
+    --dark-border: #000000;
+    /* Color de los bordes delimitadores */
 }
 
 body {
     font-family: 'Poppins', sans-serif;
     background: #f7fafc;
+    color: #2d3748;
 }
 
+/* Navbar y Avatar */
 .navbar-brand {
     font-size: 1.3rem;
+    font-weight: 700;
 }
 
 .user-avatar {
@@ -35,18 +42,80 @@ body {
     transform: scale(1.1);
 }
 
+/* Contenedores y Tarjetas de Interfaz */
 .card {
     border: none;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     border-radius: 12px;
     margin-bottom: 20px;
+    animation: fadeIn 0.5s ease;
+}
+
+/* =======================================================
+   ESTRUCTURA DE LA TABLA DE TICKETS (EFECTO SUBRAYADO)
+   ======================================================= */
+
+.table-responsive {
+    overflow: visible;
+    /* Permite que los bordes se vean bien */
 }
 
 .table {
-    background: white;
-    border-radius: 12px;
-    overflow: hidden;
+    background: transparent !important;
+    /* El fondo lo dan las filas */
+    border-collapse: separate !important;
+    /* Necesario para el espaciado */
+    border-spacing: 0 10px !important;
+    /* Espacio de 10px entre tickets */
 }
+
+/* Encabezado de la tabla */
+.table thead th {
+    border: none;
+    color: #718096;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    padding-bottom: 15px;
+}
+
+/* Filas de Tickets (El "Sándwich") */
+#ticketsTableBody tr {
+    border-top: 2px solid var(--dark-border) !important;
+    /* Borde superior negro */
+    border-bottom: 2px solid var(--dark-border) !important;
+    /* Borde inferior negro */
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+#ticketsTableBody tr:hover {
+    transform: translateY(-2px);
+    /* Efecto sutil al pasar el mouse */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* Celdas de la tabla */
+#ticketsTableBody td {
+    border: none !important;
+    /* Quitamos bordes laterales e internos */
+    padding: 1.2rem 0.75rem;
+    vertical-align: middle;
+}
+
+/* Redondear solo las esquinas exteriores del ticket (Opcional) */
+#ticketsTableBody tr td:first-child {
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+}
+
+#ticketsTableBody tr td:last-child {
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+/* =======================================================
+   COMPONENTES Y UTILIDADES
+   ======================================================= */
 
 .btn-section {
     text-align: left;
@@ -67,6 +136,7 @@ body {
 .badge {
     padding: 0.5rem 0.75rem;
     font-weight: 600;
+    border-radius: 6px;
 }
 
 /* Animaciones */
@@ -75,19 +145,20 @@ body {
         opacity: 0;
         transform: translateY(20px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
     }
 }
 
-.card {
-    animation: fadeIn 0.5s ease;
-}
-
 /* Responsive */
 @media (max-width: 768px) {
     .col-md-2 {
         margin-bottom: 20px;
+    }
+
+    .table {
+        font-size: 0.85rem;
     }
 }
