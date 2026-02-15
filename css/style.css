@@ -1,5 +1,6 @@
 /* =======================================================
-   ESTILOS MESA DE AYUDA - VERSIÓN TICKETS TIPO TARJETA
+   ESTILOS MESA DE AYUDA - VERSIÓN CORREGIDA FINAL
+   ✅ COLORES DE URGENCIA AHORA FUNCIONAN
    ======================================================= */
 
 :root {
@@ -9,7 +10,6 @@
     --danger: #f56565;
     --warning: #ed8936;
     --dark-border: #000000;
-    /* Color de los bordes delimitadores */
 }
 
 body {
@@ -53,20 +53,18 @@ body {
 
 /* =======================================================
    ESTRUCTURA DE LA TABLA DE TICKETS (EFECTO SUBRAYADO)
+   ✅ CORREGIDO - SIN BACKGROUND TRANSPARENT
    ======================================================= */
 
 .table-responsive {
     overflow: visible;
-    /* Permite que los bordes se vean bien */
 }
 
 .table {
-    background: transparent !important;
-    /* El fondo lo dan las filas */
+    /* ❌ ELIMINADO: background: transparent !important; */
+    /* ✅ SIN background forzado para permitir colores de urgencia */
     border-collapse: separate !important;
-    /* Necesario para el espaciado */
     border-spacing: 0 10px !important;
-    /* Espacio de 10px entre tickets */
 }
 
 /* Encabezado de la tabla */
@@ -77,32 +75,33 @@ body {
     text-transform: uppercase;
     font-size: 0.8rem;
     padding-bottom: 15px;
+    background-color: transparent;
 }
 
-/* Filas de Tickets (El "Sándwich") */
+/* Filas de Tickets (El "Sándwich") 
+   ✅ SIN background forzado - JavaScript aplica los colores dinámicamente */
 #ticketsTableBody tr {
     border-top: 2px solid var(--dark-border) !important;
-    /* Borde superior negro */
     border-bottom: 2px solid var(--dark-border) !important;
-    /* Borde inferior negro */
     transition: background-color 0.3s ease, transform 0.2s ease;
+    /* El background-color lo establece JavaScript según urgencia */
 }
 
 #ticketsTableBody tr:hover {
     transform: translateY(-2px);
-    /* Efecto sutil al pasar el mouse */
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    /* NO cambiar background en hover para mantener color de urgencia */
+    filter: brightness(0.97);
 }
 
 /* Celdas de la tabla */
 #ticketsTableBody td {
     border: none !important;
-    /* Quitamos bordes laterales e internos */
     padding: 1.2rem 0.75rem;
     vertical-align: middle;
 }
 
-/* Redondear solo las esquinas exteriores del ticket (Opcional) */
+/* Redondear solo las esquinas exteriores del ticket */
 #ticketsTableBody tr td:first-child {
     border-top-left-radius: 8px;
     border-bottom-left-radius: 8px;
@@ -145,7 +144,6 @@ body {
         opacity: 0;
         transform: translateY(20px);
     }
-
     to {
         opacity: 1;
         transform: translateY(0);
@@ -161,4 +159,19 @@ body {
     .table {
         font-size: 0.85rem;
     }
+}
+
+/* =======================================================
+   ASEGURAR QUE LOS COLORES SE VEAN (IMPORTANTE)
+   ======================================================= */
+
+/* Bootstrap por defecto aplica estilos que pueden interferir */
+.table-hover tbody tr:hover {
+    background-color: inherit !important; /* Mantener color de urgencia */
+    filter: brightness(0.97);
+}
+
+/* Asegurar que tbody no tenga background */
+.table tbody {
+    background-color: transparent;
 }

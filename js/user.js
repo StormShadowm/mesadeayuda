@@ -1,5 +1,5 @@
-// user.js - VERSIÓN CORREGIDA Y MEJORADA
-// Corrige errores y agrega nuevas funcionalidades
+// user.js - VERSIÓN DEFINITIVA COMPLETA
+// Incluye: Ordenamiento completo, Respuestas, Colores, Navegación
 
 let currentView = "mytickets";
 let userTickets = [];
@@ -34,8 +34,8 @@ async function loadUserProfile() {
 
 function showView(view) {
   currentView = view;
+  currentPage = 1;
 
-  // Actualizar botones del menú
   const buttons = document.querySelectorAll(".list-group-item");
   buttons.forEach((btn) => {
     btn.classList.remove("active");
@@ -58,7 +58,6 @@ function showView(view) {
 async function renderCreateForm() {
   const content = document.getElementById("content");
 
-  // Cargar categorías
   const response = await fetch("php/tickets_api.php?action=get_categories");
   const data = await response.json();
 
@@ -289,7 +288,6 @@ function renderMyTickets(tickets) {
     return;
   }
 
-  // Calcular paginación
   const totalPages = Math.ceil(tickets.length / ticketsPerPage);
   const startIndex = (currentPage - 1) * ticketsPerPage;
   const endIndex = startIndex + ticketsPerPage;
@@ -300,16 +298,23 @@ function renderMyTickets(tickets) {
             <h4>Mis Tickets (${tickets.length})</h4>
             <div class="d-flex gap-2 align-items-center">
                 <small class="text-muted">Mostrando ${startIndex + 1}-${Math.min(endIndex, tickets.length)} de ${tickets.length}</small>
+                <button class="btn btn-sm btn-outline-primary" onclick="previousPage()" ${currentPage === 1 ? "disabled" : ""}>
+                    ◀ Anterior
+                </button>
+                <span class="badge bg-primary">${currentPage} / ${totalPages}</span>
+                <button class="btn btn-sm btn-outline-primary" onclick="nextPage()" ${currentPage === totalPages ? "disabled" : ""}>
+                    Siguiente ▶
+                </button>
                 <button class="btn btn-success btn-sm" onclick="showView('create')">➕ Nuevo</button>
             </div>
         </div>
         
         <div class="table-responsive">
-            <table class="table table-hover">
+            <table class="table table-hover table-sm">
                 <thead class="table-light">
                     <tr>
                         <th style="cursor:pointer" onclick="sortTickets('id')">
-                            ID ${sortColumn === "id" ? (sortDirection === "ASC" ? "▲" : "▼") : ""}
+                            ID ${sortColumn === "id" ? (sortDirection === "ASC" ? "▲" : "▼") : "▼"}
                         </th>
                         <th style="cursor:pointer" onclick="sortTickets('titulo')">
                             Título ${sortColumn === "titulo" ? (sortDirection === "ASC" ? "▲" : "▼") : ""}
@@ -320,9 +325,15 @@ function renderMyTickets(tickets) {
                         <th style="cursor:pointer" onclick="sortTickets('prioridad')">
                             Prioridad ${sortColumn === "prioridad" ? (sortDirection === "ASC" ? "▲" : "▼") : ""}
                         </th>
-                        <th>Categoría</th>
-                        <th>Respuestas</th>
-                        <th>Tiempo</th>
+                        <th style="cursor:pointer" onclick="sortTickets('categoria')">
+                            Categoría ${sortColumn === "categoria" ? (sortDirection === "ASC" ? "▲" : "▼") : ""}
+                        </th>
+                        <th style="cursor:pointer" onclick="sortTickets('respuestas')">
+                            Respuestas ${sortColumn === "respuestas" ? (sortDirection === "ASC" ? "▲" : "▼") : ""}
+                        </th>
+                        <th style="cursor:pointer" onclick="sortTickets('minutos_abierto')">
+                            Tiempo ${sortColumn === "minutos_abierto" ? (sortDirection === "ASC" ? "▲" : "▼") : ""}
+                        </th>
                         <th style="cursor:pointer" onclick="sortTickets('fecha_creacion')">
                             Fecha ${sortColumn === "fecha_creacion" ? (sortDirection === "ASC" ? "▲" : "▼") : ""}
                         </th>
@@ -336,29 +347,23 @@ function renderMyTickets(tickets) {
     html += renderTicketRow(ticket);
   });
 
-  html += `
-                </tbody>
-            </table>
-        </div>
-    `;
+  html += "</tbody></table></div>";
 
-  // Paginación
   if (totalPages > 1) {
-    html += '<nav><ul class="pagination">';
-    for (let i = 1; i <= totalPages; i++) {
-      html += `<li class="page-item ${i === currentPage ? "active" : ""}">
-                <a class="page-link" href="#" onclick="changePage(${i}); return false;">${i}</a>
-            </li>`;
-    }
-    html += "</ul></nav>";
+    html += `
+            <div class="d-flex justify-content-center align-items-center gap-2 mt-3">
+                <button class="btn btn-sm btn-outline-primary" onclick="previousPage()" ${currentPage === 1 ? "disabled" : ""}>
+                    ◀ Anterior
+                </button>
+                <span>Página ${currentPage} de ${totalPages}</span>
+                <button class="btn btn-sm btn-outline-primary" onclick="nextPage()" ${currentPage === totalPages ? "disabled" : ""}>
+                    Siguiente ▶
+                </button>
+            </div>
+        `;
   }
 
   content.innerHTML = html;
-}
-
-function changePage(page) {
-  currentPage = page;
-  renderMyTickets(userTickets);
 }
 
 function renderTicketRow(ticket) {
@@ -378,17 +383,16 @@ function renderTicketRow(ticket) {
       critica: "bg-danger",
     }[ticket.prioridad] || "bg-secondary";
 
-  // Calcular color según urgencia
   const minutos = ticket.minutos_abierto || 0;
   const urgencia = Math.min(100, (minutos / 60) * 100);
 
   let bgColor = "#ffffff";
   if (urgencia >= 100) {
-    bgColor = "#ffcccc"; // Rojo
+    bgColor = "#ffcccc";
   } else if (urgencia >= 66) {
-    bgColor = "#ffe6cc"; // Naranja
+    bgColor = "#ffe6cc";
   } else if (urgencia >= 33) {
-    bgColor = "#fff9cc"; // Amarillo
+    bgColor = "#fff9cc";
   }
 
   const tiempoTexto =
@@ -397,13 +401,13 @@ function renderTicketRow(ticket) {
       : `${Math.floor(minutos / 60)}h ${Math.floor(minutos % 60)}m`;
 
   return `
-        <tr style="background-color: ${bgColor}; transition: background-color 0.3s;" data-ticket-id="${ticket.id}" data-minutos="${minutos}">
+        <tr style="background-color: ${bgColor}; transition: background-color 0.3s; border-bottom: 2px solid #dee2e6;" data-ticket-id="${ticket.id}" data-minutos="${minutos}">
             <td><strong>#${ticket.id}</strong></td>
             <td>${escapeHtml(ticket.titulo)}</td>
             <td><span class="badge ${estadoClass}">${ticket.estado}</span></td>
             <td><span class="badge ${prioridadClass}">${ticket.prioridad.toUpperCase()}</span></td>
-            <td>${escapeHtml(ticket.categoria || "-")}</td>
-            <td class="text-center">${ticket.respuestas || 0}</td>
+            <td><small>${escapeHtml(ticket.categoria || "-")}</small></td>
+            <td class="text-center"><span class="badge bg-secondary">${ticket.respuestas || 0}</span></td>
             <td class="ticket-tiempo"><small>⏱️ ${tiempoTexto}</small></td>
             <td><small>${formatDate(ticket.fecha_creacion)}</small></td>
             <td>
@@ -411,6 +415,23 @@ function renderTicketRow(ticket) {
             </td>
         </tr>
     `;
+}
+
+function previousPage() {
+  if (currentPage > 1) {
+    currentPage--;
+    renderMyTickets(userTickets);
+    window.scrollTo(0, 0);
+  }
+}
+
+function nextPage() {
+  const totalPages = Math.ceil(userTickets.length / ticketsPerPage);
+  if (currentPage < totalPages) {
+    currentPage++;
+    renderMyTickets(userTickets);
+    window.scrollTo(0, 0);
+  }
 }
 
 function sortTickets(column) {
@@ -425,7 +446,11 @@ function sortTickets(column) {
     let valA = a[column];
     let valB = b[column];
 
-    if (column === "id" || column === "minutos_abierto") {
+    if (
+      column === "id" ||
+      column === "minutos_abierto" ||
+      column === "respuestas"
+    ) {
       valA = parseInt(valA) || 0;
       valB = parseInt(valB) || 0;
     }
@@ -780,7 +805,7 @@ function startAutoUpdate() {
     if (currentView === "mytickets") {
       updateTicketTimesRealTime();
     }
-  }, 1000); // Actualizar cada segundo
+  }, 1000);
 }
 
 function updateTicketTimesRealTime() {
@@ -791,14 +816,12 @@ function updateTicketTimesRealTime() {
   rows.forEach((row) => {
     const ticketId = row.getAttribute("data-ticket-id");
     const minutosActual = parseFloat(row.getAttribute("data-minutos") || 0);
-    const nuevosMinutos = minutosActual + 1 / 60; // Incrementar por segundo
+    const nuevosMinutos = minutosActual + 1 / 60;
 
     row.setAttribute("data-minutos", nuevosMinutos);
 
-    // Calcular urgencia
     const urgencia = Math.min(100, (nuevosMinutos / 60) * 100);
 
-    // Actualizar color
     let bgColor = "#ffffff";
     if (urgencia >= 100) {
       bgColor = "#ffcccc";
@@ -810,7 +833,6 @@ function updateTicketTimesRealTime() {
 
     row.style.backgroundColor = bgColor;
 
-    // Actualizar texto de tiempo
     const minutos = Math.floor(nuevosMinutos);
     const tiempoTexto =
       minutos < 60

@@ -1,7 +1,7 @@
 <?php
 /**
- * tickets_api.php - API COMPLETA Y FINAL
- * Todas las funciones corregidas y mejoradas
+ * tickets_api.php - API DEFINITIVA COMPLETA
+ * Con minutos_sin_respuesta implementado en TODAS las funciones
  */
 
 session_start();
@@ -79,56 +79,59 @@ function listar_tickets() {
     $user_id = $_SESSION['user_id'];
     $rol = $_SESSION['id_rol_admin'];
     
-    if ($rol <= 3) {
-        // Admin ve todos los asignados a él o sin asignar
-        $query = "SELECT t.*, 
+    // Query base con DOS TIEMPOS
+    $base_select = "SELECT t.*, 
                   CONCAT(u.primer_nombre, ' ', u.primer_apellido) AS nombre_usuario,
                   u.email AS email_usuario,
                   CONCAT(a.primer_nombre, ' ', a.primer_apellido) AS nombre_asignado,
+                  
                   TIMESTAMPDIFF(MINUTE, t.fecha_creacion, NOW()) AS minutos_abierto,
+                  
+                  CASE 
+                      WHEN (SELECT MAX(m.fecha_envio) 
+                            FROM mensajes_ticket m 
+                            INNER JOIN usuarios u2 ON m.id_usuario = u2.id 
+                            WHERE m.id_ticket = t.id 
+                            AND u2.id_rol_admin <= 3) IS NOT NULL
+                      THEN TIMESTAMPDIFF(MINUTE, 
+                          (SELECT MAX(m.fecha_envio) 
+                           FROM mensajes_ticket m 
+                           INNER JOIN usuarios u2 ON m.id_usuario = u2.id 
+                           WHERE m.id_ticket = t.id 
+                           AND u2.id_rol_admin <= 3), 
+                          NOW())
+                      ELSE TIMESTAMPDIFF(MINUTE, t.fecha_creacion, NOW())
+                  END AS minutos_sin_respuesta,
+                  
                   CASE 
                       WHEN t.archivo_adjunto IS NOT NULL THEN 'Sí'
                       WHEN (SELECT COUNT(*) FROM mensajes_ticket WHERE id_ticket = t.id AND archivo_adjunto IS NOT NULL) > 0 THEN 'Sí'
                       ELSE 'No'
                   END AS tiene_adjunto,
+                  
                   (SELECT COUNT(*) FROM mensajes_ticket WHERE id_ticket = t.id) AS respuestas
+                  
                   FROM tickets t
                   LEFT JOIN usuarios u ON t.id_usuario = u.id
-                  LEFT JOIN usuarios a ON t.id_asignado = a.id
-                  WHERE (t.id_asignado = ? OR t.id_asignado IS NULL OR t.id_usuario = ?)
-                  ORDER BY t.fecha_creacion DESC";
+                  LEFT JOIN usuarios a ON t.id_asignado = a.id";
+    
+    if ($rol <= 3) {
+        // Admin ve todos
+        $query = $base_select . " WHERE (t.id_asignado = ? OR t.id_asignado IS NULL OR t.id_usuario = ?) ORDER BY t.fecha_creacion DESC";
         $stmt = $conn->prepare($query);
         $stmt->bind_param("ii", $user_id, $user_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
     } else {
         // Usuario ve solo los suyos
-        $query = "SELECT t.*, 
-                  CONCAT(u.primer_nombre, ' ', u.primer_apellido) AS nombre_usuario,
-                  u.email AS email_usuario,
-                  CONCAT(a.primer_nombre, ' ', a.primer_apellido) AS nombre_asignado,
-                  TIMESTAMPDIFF(MINUTE, t.fecha_creacion, NOW()) AS minutos_abierto,
-                  CASE 
-                      WHEN t.archivo_adjunto IS NOT NULL THEN 'Sí'
-                      WHEN (SELECT COUNT(*) FROM mensajes_ticket WHERE id_ticket = t.id AND archivo_adjunto IS NOT NULL) > 0 THEN 'Sí'
-                      ELSE 'No'
-                  END AS tiene_adjunto,
-                  (SELECT COUNT(*) FROM mensajes_ticket WHERE id_ticket = t.id) AS respuestas
-                  FROM tickets t
-                  LEFT JOIN usuarios u ON t.id_usuario = u.id
-                  LEFT JOIN usuarios a ON t.id_asignado = a.id
-                  WHERE t.id_usuario = ?
-                  ORDER BY t.fecha_creacion DESC";
+        $query = $base_select . " WHERE t.id_usuario = ? ORDER BY t.fecha_creacion DESC";
         $stmt = $conn->prepare($query);
         $stmt->bind_param("i", $user_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
     }
+    
+    $stmt->execute();
+    $result = $stmt->get_result();
     
     $tickets = [];
     while ($row = $result->fetch_assoc()) {
-        $minutos = $row['minutos_abierto'];
-        $row['urgencia_porcentaje'] = min(100, ($minutos / 60) * 100);
         $tickets[] = $row;
     }
     
@@ -141,7 +144,6 @@ function listar_tickets_filtrados() {
     $user_id = $_SESSION['user_id'];
     $rol = $_SESSION['id_rol_admin'];
     
-    // Obtener filtros
     $usuarios = isset($_POST['usuarios']) ? $_POST['usuarios'] : [];
     $fecha_desde = $_POST['fecha_desde'] ?? '';
     $fecha_hasta = $_POST['fecha_hasta'] ?? '';
@@ -155,7 +157,6 @@ function listar_tickets_filtrados() {
     $params = [];
     $types = '';
     
-    // Filtro de usuario
     if ($rol <= 3) {
         if (!empty($usuarios) && is_array($usuarios)) {
             $placeholders = str_repeat('?,', count($usuarios) - 1) . '?';
@@ -171,7 +172,6 @@ function listar_tickets_filtrados() {
         $types .= 'i';
     }
     
-    // Filtros adicionales
     if ($fecha_desde) {
         $where[] = "DATE(t.fecha_creacion) >= ?";
         $params[] = $fecha_desde;
@@ -211,17 +211,38 @@ function listar_tickets_filtrados() {
     
     $where_sql = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
     
+    // Query con DOS TIEMPOS
     $query = "SELECT t.*, 
               CONCAT(u.primer_nombre, ' ', u.primer_apellido) AS nombre_usuario,
               u.email AS email_usuario,
               CONCAT(a.primer_nombre, ' ', a.primer_apellido) AS nombre_asignado,
+              
               TIMESTAMPDIFF(MINUTE, t.fecha_creacion, NOW()) AS minutos_abierto,
+              
+              CASE 
+                  WHEN (SELECT MAX(m.fecha_envio) 
+                        FROM mensajes_ticket m 
+                        INNER JOIN usuarios u2 ON m.id_usuario = u2.id 
+                        WHERE m.id_ticket = t.id 
+                        AND u2.id_rol_admin <= 3) IS NOT NULL
+                  THEN TIMESTAMPDIFF(MINUTE, 
+                      (SELECT MAX(m.fecha_envio) 
+                       FROM mensajes_ticket m 
+                       INNER JOIN usuarios u2 ON m.id_usuario = u2.id 
+                       WHERE m.id_ticket = t.id 
+                       AND u2.id_rol_admin <= 3), 
+                      NOW())
+                  ELSE TIMESTAMPDIFF(MINUTE, t.fecha_creacion, NOW())
+              END AS minutos_sin_respuesta,
+              
               CASE 
                   WHEN t.archivo_adjunto IS NOT NULL THEN 'Sí'
                   WHEN (SELECT COUNT(*) FROM mensajes_ticket WHERE id_ticket = t.id AND archivo_adjunto IS NOT NULL) > 0 THEN 'Sí'
                   ELSE 'No'
               END AS tiene_adjunto,
+              
               (SELECT COUNT(*) FROM mensajes_ticket WHERE id_ticket = t.id) AS respuestas
+              
               FROM tickets t
               LEFT JOIN usuarios u ON t.id_usuario = u.id
               LEFT JOIN usuarios a ON t.id_asignado = a.id
@@ -237,8 +258,6 @@ function listar_tickets_filtrados() {
     
     $tickets = [];
     while ($row = $result->fetch_assoc()) {
-        $minutos = $row['minutos_abierto'];
-        $row['urgencia_porcentaje'] = min(100, ($minutos / 60) * 100);
         $tickets[] = $row;
     }
     
@@ -275,7 +294,24 @@ function obtener_ticket() {
                            CONCAT(u.primer_nombre, ' ', u.primer_apellido) as nombre_usuario,
                            u.email as email_usuario,
                            CONCAT(a.primer_nombre, ' ', a.primer_apellido) as nombre_asignado,
-                           TIMESTAMPDIFF(MINUTE, t.fecha_creacion, NOW()) AS minutos_abierto
+                           TIMESTAMPDIFF(MINUTE, t.fecha_creacion, NOW()) AS minutos_abierto,
+                           
+                           CASE 
+                               WHEN (SELECT MAX(m.fecha_envio) 
+                                     FROM mensajes_ticket m 
+                                     INNER JOIN usuarios u2 ON m.id_usuario = u2.id 
+                                     WHERE m.id_ticket = t.id 
+                                     AND u2.id_rol_admin <= 3) IS NOT NULL
+                               THEN TIMESTAMPDIFF(MINUTE, 
+                                   (SELECT MAX(m.fecha_envio) 
+                                    FROM mensajes_ticket m 
+                                    INNER JOIN usuarios u2 ON m.id_usuario = u2.id 
+                                    WHERE m.id_ticket = t.id 
+                                    AND u2.id_rol_admin <= 3), 
+                                   NOW())
+                               ELSE TIMESTAMPDIFF(MINUTE, t.fecha_creacion, NOW())
+                           END AS minutos_sin_respuesta
+                           
                            FROM tickets t
                            LEFT JOIN usuarios u ON t.id_usuario = u.id
                            LEFT JOIN usuarios a ON t.id_asignado = a.id
@@ -340,9 +376,6 @@ function asignar_ticket() {
     global $conn;
     $ticket_id = intval($_POST['ticket_id'] ?? 0);
     $usuario_asignado = intval($_POST['usuario_asignado'] ?? 0);
-    $user_id = $_SESSION['user_id'];
-    
-    $conn->query("SET @current_user_id = $user_id");
     
     $stmt = $conn->prepare("UPDATE tickets SET id_asignado = ?, fecha_actualizacion = NOW() WHERE id = ?");
     $stmt->bind_param("ii", $usuario_asignado, $ticket_id);
@@ -428,12 +461,7 @@ function obtener_estadisticas() {
     $user_id = $_SESSION['user_id'];
     $rol = $_SESSION['id_rol_admin'];
     
-    $filtros = [];
-    if ($rol > 3) {
-        $filtros[] = "id_usuario = $user_id";
-    }
-    
-    $where = !empty($filtros) ? 'WHERE ' . implode(' AND ', $filtros) : '';
+    $where = $rol > 3 ? "WHERE id_usuario = $user_id" : '';
     
     $query = "SELECT 
               COUNT(*) as total,
@@ -442,7 +470,9 @@ function obtener_estadisticas() {
               SUM(CASE WHEN estado = 'Cerrado' THEN 1 ELSE 0 END) as cerrados,
               SUM(CASE WHEN estado = 'Resuelto' THEN 1 ELSE 0 END) as resueltos,
               SUM(CASE WHEN prioridad = 'critica' THEN 1 ELSE 0 END) as criticos,
-              SUM(CASE WHEN prioridad = 'alta' THEN 1 ELSE 0 END) as altos
+              SUM(CASE WHEN prioridad = 'alta' THEN 1 ELSE 0 END) as altos,
+              SUM(CASE WHEN prioridad = 'baja' THEN 1 ELSE 0 END) as bajos,
+              SUM(CASE WHEN prioridad = 'media' THEN 1 ELSE 0 END) as medios
               FROM tickets $where";
     
     $result = $conn->query($query);
@@ -482,7 +512,7 @@ function obtener_subcategorias() {
 
 function obtener_usuarios_admin() {
     global $conn;
-    $result = $conn->query("SELECT id, CONCAT(primer_nombre, ' ', primer_apellido) as nombre, usuario, id_rol_admin 
+    $result = $conn->query("SELECT id, CONCAT(primer_nombre, ' ', primer_apellido) as nombre 
                            FROM usuarios 
                            WHERE id_rol_admin <= 3 AND estado = 1 
                            ORDER BY primer_nombre");

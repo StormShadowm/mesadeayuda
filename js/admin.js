@@ -1,5 +1,5 @@
-// admin.js - VERSIÓN ULTRA FINAL
-// Incluye: Columna Asignado, Navegación con botones, Corrección errores
+// admin.js - VERSIÓN DEFINITIVA CON TODAS LAS CORRECCIONES
+// Incluye: Ordenamiento completo, Respuestas, Navbar mejorado, Filtros mejorados
 
 let currentView = "tickets";
 let allTickets = [];
@@ -44,7 +44,7 @@ function getInitials(name) {
 
 function showView(view, event) {
   currentView = view;
-  currentPage = 1; // Reset página al cambiar vista
+  currentPage = 1;
 
   if (event && event.target) {
     document.querySelectorAll(".btn-section").forEach((btn) => {
@@ -77,7 +77,7 @@ function showView(view, event) {
   }
 }
 
-// ==================== CREAR TICKET (ADMIN) ====================
+// ==================== CREAR TICKET ====================
 
 async function renderCreateTicketForm() {
   const content = document.getElementById("content");
@@ -288,7 +288,8 @@ async function renderTickets(tickets) {
   let usuariosOptions = "";
   if (dataUsers.success) {
     dataUsers.usuarios.forEach((u) => {
-      usuariosOptions += `<option value="${u.id}">${u.nombre_completo}</option>`;
+      const rolLabel = u.id_rol_admin <= 3 ? "Admin" : "Usuario";
+      usuariosOptions += `<option value="${u.id}">${u.nombre_completo} (${rolLabel})</option>`;
     });
   }
 
@@ -310,28 +311,28 @@ async function renderTickets(tickets) {
   let html = `
         <div class="card mb-3">
             <div class="card-body">
-                <h5 class="card-title">🔍 Filtros Avanzados</h5>
+                <h5 class="card-title mb-3">🔍 Filtros Avanzados</h5>
                 <div class="row g-2">
                     <div class="col-md-3">
-                        <label class="form-label small">Buscar</label>
+                        <label class="form-label small fw-bold">Buscar</label>
                         <input type="text" id="filtro_busqueda" class="form-control form-control-sm" placeholder="ID, usuario, email...">
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label small">Usuarios</label>
+                        <label class="form-label small fw-bold">Usuarios</label>
                         <select id="filtro_usuarios" class="form-select form-select-sm" multiple size="1">
                             ${usuariosOptions}
                         </select>
                     </div>
                     <div class="col-md-1">
-                        <label class="form-label small">Desde</label>
+                        <label class="form-label small fw-bold">Desde</label>
                         <input type="date" id="filtro_fecha_desde" class="form-control form-control-sm">
                     </div>
                     <div class="col-md-1">
-                        <label class="form-label small">Hasta</label>
+                        <label class="form-label small fw-bold">Hasta</label>
                         <input type="date" id="filtro_fecha_hasta" class="form-control form-control-sm">
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label small">Estado</label>
+                        <label class="form-label small fw-bold">Estado</label>
                         <select id="filtro_estado" class="form-select form-select-sm">
                             <option value="">Todos</option>
                             <option value="Abierto">Abierto</option>
@@ -341,7 +342,7 @@ async function renderTickets(tickets) {
                         </select>
                     </div>
                     <div class="col-md-1">
-                        <label class="form-label small">Prioridad</label>
+                        <label class="form-label small fw-bold">Prioridad</label>
                         <select id="filtro_prioridad" class="form-select form-select-sm">
                             <option value="">Todas</option>
                             <option value="baja">Baja</option>
@@ -351,14 +352,14 @@ async function renderTickets(tickets) {
                         </select>
                     </div>
                     <div class="col-md-1">
-                        <label class="form-label small">Categoría</label>
+                        <label class="form-label small fw-bold">Categoría</label>
                         <select id="filtro_categoria" class="form-select form-select-sm">
                             <option value="">Todas</option>
                             ${categoriasOptions}
                         </select>
                     </div>
                     <div class="col-md-1">
-                        <label class="form-label small">Adjunto</label>
+                        <label class="form-label small fw-bold">Adjunto</label>
                         <select id="filtro_adjunto" class="form-select form-select-sm">
                             <option value="">Todos</option>
                             <option value="Sí">Sí</option>
@@ -395,7 +396,7 @@ async function renderTickets(tickets) {
                 <thead class="table-light">
                     <tr>
                         <th style="cursor:pointer" onclick="sortTickets('id')">
-                            ID ${sortColumn === "id" ? (sortDirection === "ASC" ? "▲" : "▼") : ""}
+                            ID ${sortColumn === "id" ? (sortDirection === "ASC" ? "▲" : "▼") : "▼"}
                         </th>
                         <th style="cursor:pointer" onclick="sortTickets('titulo')">
                             Título ${sortColumn === "titulo" ? (sortDirection === "ASC" ? "▲" : "▼") : ""}
@@ -408,9 +409,16 @@ async function renderTickets(tickets) {
                         <th style="cursor:pointer" onclick="sortTickets('prioridad')">
                             Prioridad ${sortColumn === "prioridad" ? (sortDirection === "ASC" ? "▲" : "▼") : ""}
                         </th>
-                        <th>Categoría</th>
+                        <th style="cursor:pointer" onclick="sortTickets('categoria')">
+                            Categoría ${sortColumn === "categoria" ? (sortDirection === "ASC" ? "▲" : "▼") : ""}
+                        </th>
                         <th>Adjunto</th>
-                        <th>Tiempo</th>
+                        <th style="cursor:pointer" onclick="sortTickets('respuestas')">
+                            Respuestas ${sortColumn === "respuestas" ? (sortDirection === "ASC" ? "▲" : "▼") : ""}
+                        </th>
+                        <th style="cursor:pointer" onclick="sortTickets('minutos_abierto')">
+                            Tiempo ${sortColumn === "minutos_abierto" ? (sortDirection === "ASC" ? "▲" : "▼") : ""}
+                        </th>
                         <th style="cursor:pointer" onclick="sortTickets('fecha_creacion')">
                             Fecha ${sortColumn === "fecha_creacion" ? (sortDirection === "ASC" ? "▲" : "▼") : ""}
                         </th>
@@ -482,7 +490,7 @@ function renderTicketRow(ticket) {
     : '<span class="text-muted small">Sin asignar</span>';
 
   return `
-        <tr style="background-color: ${bgColor}; transition: background-color 0.3s;" data-ticket-id="${ticket.id}" data-minutos="${minutos}">
+        <tr style="background-color: ${bgColor}; transition: background-color 0.3s; border-bottom: 2px solid #dee2e6;" data-ticket-id="${ticket.id}" data-minutos="${minutos}">
             <td><strong>#${ticket.id}</strong></td>
             <td>${escapeHtml(ticket.titulo)}</td>
             <td><small>${escapeHtml(ticket.nombre_usuario || "Desconocido")}</small></td>
@@ -491,10 +499,13 @@ function renderTicketRow(ticket) {
             <td><span class="badge ${prioridadClass}">${ticket.prioridad.toUpperCase()}</span></td>
             <td><small>${escapeHtml(ticket.categoria || "-")}</small></td>
             <td class="text-center"><small>${ticket.tiene_adjunto || "No"}</small></td>
+            <td class="text-center"><span class="badge bg-secondary">${ticket.respuestas || 0}</span></td>
             <td class="ticket-tiempo"><small>⏱️ ${tiempoTexto}</small></td>
             <td><small>${formatDate(ticket.fecha_creacion)}</small></td>
             <td>
-                <button class="btn btn-sm btn-primary" onclick="viewTicketDetail(${ticket.id})">👁️</button>
+                <button class="btn btn-sm btn-primary" onclick="viewTicketDetail(${ticket.id})" title="Ver detalles">
+                    👁️ Ver
+                </button>
             </td>
         </tr>
     `;
@@ -529,7 +540,11 @@ function sortTickets(column) {
     let valA = a[column];
     let valB = b[column];
 
-    if (column === "id" || column === "minutos_abierto") {
+    if (
+      column === "id" ||
+      column === "minutos_abierto" ||
+      column === "respuestas"
+    ) {
       valA = parseInt(valA) || 0;
       valB = parseInt(valB) || 0;
     }
@@ -543,6 +558,8 @@ function sortTickets(column) {
 
   renderTickets(allTickets);
 }
+
+// Continúa en el siguiente mensaje...
 
 async function aplicarFiltros() {
   const busqueda = document.getElementById("filtro_busqueda").value;
@@ -616,8 +633,6 @@ async function exportarExcel() {
 
   window.open(`php/exportar_excel.php?${params.toString()}`, "_blank");
 }
-
-// Continúa en siguiente mensaje debido al límite...
 
 async function viewTicketDetail(ticketId) {
   currentTicketId = ticketId;
@@ -1042,7 +1057,7 @@ function renderUsers(users) {
     const estado = u.estado == 1 ? "Activo" : "Inactivo";
 
     html += `
-            <tr>
+            <tr style="border-bottom: 2px solid #dee2e6;">
                 <td>${u.id}</td>
                 <td>${escapeHtml(u.nombre_completo)}</td>
                 <td><code>${escapeHtml(u.usuario)}</code></td>
@@ -1247,7 +1262,8 @@ function renderStats(s) {
             <h4>Estadísticas del Sistema</h4>
             <button class="btn btn-success" onclick="exportarExcel()">📥 Descargar Reporte Excel</button>
         </div>
-        <div class="row g-3">
+        
+        <div class="row g-3 mb-4">
             <div class="col-md-2">
                 <div class="card text-center">
                     <div class="card-body">
@@ -1297,7 +1313,102 @@ function renderStats(s) {
                 </div>
             </div>
         </div>
+        
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Distribución por Estado</h5>
+                        <canvas id="chartEstados"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Distribución por Prioridad</h5>
+                        <canvas id="chartPrioridades"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
     `;
+
+  // Crear gráficos
+  setTimeout(() => {
+    createCharts(s);
+  }, 100);
+}
+
+function createCharts(stats) {
+  // Gráfico de Estados
+  const ctxEstados = document.getElementById("chartEstados");
+  if (ctxEstados) {
+    new Chart(ctxEstados, {
+      type: "pie",
+      data: {
+        labels: ["Abiertos", "En Proceso", "Resueltos", "Cerrados"],
+        datasets: [
+          {
+            data: [
+              stats.abiertos || 0,
+              stats.en_proceso || 0,
+              stats.resueltos || 0,
+              stats.cerrados || 0,
+            ],
+            backgroundColor: ["#0d6efd", "#ffc107", "#198754", "#6c757d"],
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            position: "bottom",
+          },
+        },
+      },
+    });
+  }
+
+  // Gráfico de Prioridades
+  const ctxPrioridades = document.getElementById("chartPrioridades");
+  if (ctxPrioridades) {
+    new Chart(ctxPrioridades, {
+      type: "bar",
+      data: {
+        labels: ["Baja", "Media", "Alta", "Crítica"],
+        datasets: [
+          {
+            label: "Tickets",
+            data: [
+              stats.bajos || 0,
+              stats.medios || 0,
+              stats.altos || 0,
+              stats.criticos || 0,
+            ],
+            backgroundColor: ["#0dcaf0", "#ffc107", "#fd7e14", "#dc3545"],
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: false,
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              stepSize: 1,
+            },
+          },
+        },
+      },
+    });
+  }
 }
 
 // ==================== ACTUALIZACIÓN EN TIEMPO REAL ====================
