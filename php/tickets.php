@@ -56,6 +56,7 @@ function listar_tickets($conn) {
                   LEFT JOIN usuarios u ON t.id_usuario = u.id
                   LEFT JOIN usuarios a ON t.id_asignado = a.id
                   ORDER BY t.fecha_creacion DESC";
+                  
         $result = $conn->query($query);
     } else {
         $stmt = $conn->prepare("SELECT t.*, CONCAT(u.primer_nombre, ' ', u.primer_apellido) as nombre_usuario,

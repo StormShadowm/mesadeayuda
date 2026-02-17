@@ -1,6 +1,3 @@
-// admin.js - VERSIÓN DEFINITIVA CON TODAS LAS CORRECCIONES
-// Incluye: Ordenamiento completo, Respuestas, Navbar mejorado, Filtros mejorados
-
 let currentView = "tickets";
 let allTickets = [];
 let allUsers = [];

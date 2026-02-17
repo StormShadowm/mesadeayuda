@@ -846,6 +846,25 @@ function updateTicketTimesRealTime() {
   });
 }
 
+async function viewTicketDetail(ticketId) {
+  currentTicketId = ticketId;
+
+  try {
+    const response = await fetch(
+      `php/tickets_api.php?action=get&id=${ticketId}`,
+    );
+    const data = await response.json();
+
+    if (data.success) {
+      showTicketModal(data.ticket);
+    } else {
+      alert("Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    alert("Error de conexión");
+  }
+}
 // ==================== UTILIDADES ====================
 
 function formatDate(d) {
