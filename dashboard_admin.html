@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="es">
+  <script src="js/DIAGNOSTICO_ADMIN.js"></script>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,11 +10,98 @@
       rel="stylesheet"
     />
     <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"
+    />
+    <link
       href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="css/style.css" />
+
+    <style>
+      .avatar-circle {
+        width: 35px;
+        height: 35px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 14px;
+      }
+
+      .btn-section {
+        text-align: left;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+      }
+
+      .btn-section:hover {
+        transform: translateX(5px);
+      }
+
+      .btn-section.active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-color: #667eea;
+        color: white;
+      }
+
+      .card {
+        border-radius: 12px;
+        border: none;
+      }
+
+      .shadow-sm {
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08) !important;
+      }
+
+      body {
+        background-color: #f5f7fa;
+        font-family: "Poppins", sans-serif;
+      }
+
+      .table tbody tr {
+        border-bottom: 2px solid #dee2e6 !important;
+      }
+
+      .table tbody tr:hover {
+        background-color: #f8f9fa !important;
+      }
+
+      .badge {
+        padding: 0.5em 0.75em;
+        font-weight: 600;
+      }
+
+      /* Estilos para calificaciones NPS */
+      .rating-stars i {
+        transition: all 0.2s ease;
+      }
+
+      .rating-stars i:hover {
+        transform: scale(1.2);
+      }
+
+      /* Estilo para headers ordenables */
+      .sortable-header {
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .sortable-header:hover {
+        background-color: #e9ecef;
+      }
+
+      .sort-indicator {
+        opacity: 0.5;
+        font-size: 0.8em;
+        margin-left: 5px;
+      }
+    </style>
   </head>
   <body>
     <!-- Navbar -->
@@ -22,8 +110,8 @@
       style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
     >
       <div class="container-fluid">
-        <a class="navbar-brand fw-bold" href="#" style="color: black">
-          🎫 Mesa de Ayuda | Administración
+        <a class="navbar-brand fw-bold" href="#" style="color: white">
+          <i class="bi bi-ticket-detailed"></i> Mesa de Ayuda | Administración
         </a>
         <div class="d-flex align-items-center gap-3">
           <div class="dropdown">
@@ -37,9 +125,16 @@
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
               <li>
-                <a class="dropdown-item" href="php/logout.php"
-                  >🚪 Cerrar Sesión</a
+                <a
+                  class="dropdown-item"
+                  href="#"
+                  onclick="
+                    cerrarSesion();
+                    return false;
+                  "
                 >
+                  <i class="bi bi-box-arrow-right"></i> Cerrar Sesión
+                </a>
               </li>
             </ul>
           </div>
@@ -56,28 +151,28 @@
             <div class="card-body p-2">
               <div class="d-grid gap-2">
                 <button
-                  class="btn btn-primary btn-section"
+                  class="btn btn-primary btn-section active"
                   onclick="showView('tickets', event)"
                 >
-                  📋 Tickets
+                  <i class="bi bi-ticket-detailed"></i> Tickets
                 </button>
                 <button
                   class="btn btn-secondary btn-section"
                   onclick="showView('create', event)"
                 >
-                  ➕ Crear Ticket
+                  <i class="bi bi-plus-circle"></i> Crear Ticket
                 </button>
                 <button
                   class="btn btn-secondary btn-section"
                   onclick="showView('users', event)"
                 >
-                  👥 Usuarios
+                  <i class="bi bi-people"></i> Usuarios
                 </button>
                 <button
                   class="btn btn-secondary btn-section"
                   onclick="showView('stats', event)"
                 >
-                  📊 Estadísticas
+                  <i class="bi bi-graph-up"></i> Estadísticas
                 </button>
               </div>
             </div>
@@ -107,7 +202,9 @@
       <div class="modal-dialog modal-xl">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">📋 Detalle del Ticket</h5>
+            <h5 class="modal-title">
+              <i class="bi bi-ticket-detailed"></i> Detalle del Ticket
+            </h5>
             <button
               type="button"
               class="btn-close"
@@ -123,83 +220,67 @@
       </div>
     </div>
 
-    <!-- Modal Editar Usuario -->
-    <div class="modal fade" id="editUserModal" tabindex="-1">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">✏️ Editar Usuario</h5>
-            <button
-              type="button"
-              class="btn-close"
-              data-bs-dismiss="modal"
-            ></button>
-          </div>
-          <div class="modal-body" id="editUserModalBody">
-            <div class="text-center py-3">
-              <div class="spinner-border text-primary"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <style>
-      .avatar-circle {
-        width: 35px;
-        height: 35px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
-        font-size: 14px;
-      }
-
-      .btn-section {
-        text-align: left;
-        border-radius: 8px;
-        font-weight: 500;
-        transition: all 0.3s ease;
-      }
-
-      .btn-section:hover {
-        transform: translateX(5px);
-      }
-
-      .card {
-        border-radius: 12px;
-        border: none;
-      }
-
-      .shadow-sm {
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08) !important;
-      }
-
-      body {
-        background-color: #f5f7fa;
-        font-family: "Poppins", sans-serif;
-      }
-
-      /* Separación visual de filas */
-      .table tbody tr {
-        border-bottom: 2px solid #dee2e6 !important;
-      }
-
-      .table tbody tr:hover {
-        background-color: #f8f9fa !important;
-      }
-
-      .badge {
-        padding: 0.5em 0.75em;
-        font-weight: 600;
-      }
-    </style>
-
+    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Scripts del sistema base -->
     <script src="js/parche_dos_tiempos.js"></script>
     <script src="js/admin.js"></script>
+
+    <!-- Scripts del sistema NPS - ORDEN IMPORTANTE -->
+    <script src="js/nps_calificaciones.js"></script>
+    <script src="js/nps_dashboard.js"></script>
+    <script src="js/historial_accesos.js"></script>
+    <script src="js/mejoras_ui.js"></script>
+    <script src="js/integracion_nps.js"></script>
+
+    <script>
+      // Función para cerrar sesión con registro
+      async function cerrarSesion() {
+        if (confirm("¿Estás seguro que deseas cerrar sesión?")) {
+          try {
+            // Registrar logout si la función está disponible
+            if (typeof registrarLogout === "function") {
+              await registrarLogout();
+            } else {
+              // Fallback: redirección directa
+              window.location.href = "php/logout.php";
+            }
+          } catch (error) {
+            console.error("Error al cerrar sesión:", error);
+            // Aún así cerrar sesión
+            window.location.href = "php/logout.php";
+          }
+        }
+      }
+
+      // Verificación de carga de módulos
+      console.log("📋 Dashboard Admin v5.0 cargado");
+      console.log("🔍 Verificando módulos del sistema...");
+
+      setTimeout(() => {
+        const modulos = {
+          "Sistema NPS": typeof window.NPS_SYSTEM !== "undefined",
+          Calificaciones: typeof mostrarModalCalificacion === "function",
+          Reaperturas: typeof mostrarModalReapertura === "function",
+          "Dashboard NPS": typeof loadNPSStats === "function",
+          "Historial Accesos": typeof cargarHistorialAccesos === "function",
+          "Mejoras UI": typeof habilitarOrdenamientoTabla === "function",
+          Integración: typeof inicializarSistemaNPS === "function",
+        };
+
+        console.table(modulos);
+
+        const todosCargados = Object.values(modulos).every((v) => v);
+        if (todosCargados) {
+          console.log("✅ Todos los módulos cargados correctamente");
+        } else {
+          console.warn(
+            "⚠️ Algunos módulos no se cargaron. Verifica los archivos JS.",
+          );
+        }
+      }, 1000);
+    </script>
   </body>
 </html>

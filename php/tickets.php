@@ -12,6 +12,14 @@ header('Content-Type: application/json; charset=utf-8');
 
 verificar_sesion();
 
+function obtenerNumeroTicket($id, $numero_reapertura, $id_ticket_original) {
+    if ($numero_reapertura > 0) {
+        $original = $id_ticket_original ?? $id;
+        return $original . '-' . $numero_reapertura;
+    }
+    return (string)$id;
+}
+
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
 switch ($action) {
@@ -43,39 +51,84 @@ switch ($action) {
         enviar_json(['success' => false, 'message' => 'Acción no válida']);
 }
 
+function obtenerNumeroTicket($id, $numero_reapertura, $id_ticket_original) {
+    if ($numero_reapertura > 0) {
+        $original = $id_ticket_original ?? $id;
+        return $original . '-' . $numero_reapertura;
+    }
+    return (string)$id;
+}
+
 function listar_tickets($conn) {
     $user_id = $_SESSION['user_id'];
     $rol = $_SESSION['id_rol_admin'];
     
     // Admin ve todos, usuario solo los suyos
     if ($rol <= 3) {
-        $query = "SELECT t.*, CONCAT(u.primer_nombre, ' ', u.primer_apellido) as nombre_usuario,
-                  CONCAT(a.primer_nombre, ' ', a.primer_apellido) as nombre_asignado,
-                  (SELECT COUNT(*) FROM mensajes_ticket WHERE id_ticket = t.id) as total_mensajes
-                  FROM tickets t
-                  LEFT JOIN usuarios u ON t.id_usuario = u.id
-                  LEFT JOIN usuarios a ON t.id_asignado = a.id
-                  ORDER BY t.fecha_creacion DESC";
-                  
-        $result = $conn->query($query);
-    } else {
-        $stmt = $conn->prepare("SELECT t.*, CONCAT(u.primer_nombre, ' ', u.primer_apellido) as nombre_usuario,
-                               (SELECT COUNT(*) FROM mensajes_ticket WHERE id_ticket = t.id) as total_mensajes
-                               FROM tickets t
-                               LEFT JOIN usuarios u ON t.id_usuario = u.id
-                               WHERE t.id_usuario = ?
-                               ORDER BY t.fecha_creacion DESC");
-        $stmt->bind_param("i", $user_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        $query = "
+    SELECT 
+        t.*,
+        CONCAT(u.primer_nombre, ' ', u.primer_apellido) as nombre_usuario,
+        CONCAT(a.primer_nombre, ' ', a.primer_apellido) as nombre_asignado,
+        (SELECT COUNT(*) FROM mensajes_ticket WHERE id_ticket = t.id) as total_mensajes,
+        TIMESTAMPDIFF(MINUTE, t.fecha_creacion, NOW()) as minutos_abierto,
+        CASE 
+            WHEN numero_reapertura > 0 THEN CONCAT(COALESCE(id_ticket_original, id), '-', numero_reapertura)
+            ELSE CAST(id AS CHAR)
+        END as ticket_numero
+    FROM tickets t
+    LEFT JOIN usuarios u ON t.id_usuario = u.id
+    LEFT JOIN usuarios a ON t.id_asignado = a.id
+    WHERE 1=1
+";
+
+// Agregar filtros según rol
+if ($user_rol == 4) { // Usuario normal
+    $query .= " AND t.id_usuario = $user_id";
+}
+
+// Ordenar de nuevo a más viejo (por defecto)
+$query .= " ORDER BY t.fecha_creacion DESC";
+
+$result = $conn->query($query);
+$tickets = [];
+
+while ($row = $result->fetch_assoc()) {
+    $row['ticket_numero'] = obtenerNumeroTicket(
+        $row['id'], 
+        $row['numero_reapertura'], 
+        $row['id_ticket_original']
+    );
+    $tickets[] = $row;
+}
+
+function puede_responder($conn){
+    else if ($action === 'puede_responder') {
+    $id_ticket = (int)($_GET['id_ticket'] ?? 0);
+    
+    $stmt = $conn->prepare("
+        SELECT estado, id_usuario 
+        FROM tickets 
+        WHERE id = ?
+    ");
+    $stmt->bind_param("i", $id_ticket);
+    $stmt->execute();
+    $ticket = $stmt->get_result()->fetch_assoc();
+    
+    if (!$ticket) {
+        http_response_code(404);
+        die(json_encode(['success' => false, 'message' => 'Ticket no encontrado']));
     }
     
-    $tickets = [];
-    while ($row = $result->fetch_assoc()) {
-        $tickets[] = $row;
-    }
+    $puede_responder = !in_array($ticket['estado'], ['Cerrado']);
     
-    enviar_json(['success' => true, 'tickets' => $tickets]);
+    echo json_encode([
+        'success' => true,
+        'puede_responder' => $puede_responder,
+        'estado' => $ticket['estado']
+    ]);
+}
+
 }
 
 function crear_ticket($conn) {
@@ -181,7 +234,20 @@ function agregar_comentario($conn) {
     $ticket_id = intval($_POST['ticket_id']);
     $mensaje = limpiar_entrada($_POST['mensaje']);
     $user_id = $_SESSION['user_id'];
-    
+    $stmt = $conn->prepare("SELECT estado FROM tickets WHERE id = ?");
+$stmt->bind_param("i", $id_ticket);
+$stmt->execute();
+$estado = $stmt->get_result()->fetch_assoc()['estado'];
+
+if ($estado === 'Cerrado') {
+    http_response_code(400);
+    die(json_encode([
+        'success' => false,
+        'message' => 'No se pueden agregar mensajes a tickets cerrados'
+    ]));
+}
+
+
     if (empty($mensaje)) {
         enviar_json(['success' => false, 'message' => 'El comentario no puede estar vacío']);
     }

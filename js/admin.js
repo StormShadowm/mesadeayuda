@@ -1087,109 +1087,224 @@ async function editUser(userId) {
   }
 }
 
-async function showEditUserModal(user) {
-  const responseAreas = await fetch("php/user_api.php?action=get_areas");
-  const dataAreas = await responseAreas.json();
+async function showEditUserModal(userId) {
+  try {
+    console.log("📝 Abriendo modal de edición para usuario:", userId);
 
-  let areasOptions = '<option value="">-- Sin área --</option>';
-  if (dataAreas.success) {
-    dataAreas.areas.forEach((a) => {
-      const selected = user.id_area == a.id ? "selected" : "";
-      areasOptions += `<option value="${a.id}" ${selected}>${a.nombre}</option>`;
-    });
+    // Obtener datos del usuario
+    const userResponse = await fetch(
+      `php/user_api.php?action=get&id=${userId}`,
+    );
+    const userData = await userResponse.json();
+
+    if (!userData.success) {
+      alert("Error al cargar usuario: " + userData.message);
+      return;
+    }
+
+    const user = userData.usuario;
+    console.log("✅ Usuario cargado:", user);
+
+    // Obtener áreas disponibles (con manejo de errores)
+    let areas = [];
+    try {
+      const areasResponse = await fetch("php/user_api.php?action=get_areas");
+      const areasData = await areasResponse.json();
+      if (areasData.success && areasData.areas) {
+        areas = areasData.areas;
+        console.log("✅ Áreas cargadas:", areas.length);
+      } else {
+        console.warn("⚠️ No se pudieron cargar áreas");
+      }
+    } catch (error) {
+      console.warn("⚠️ Error al cargar áreas:", error);
+      areas = []; // Continuar sin áreas
+    }
+
+    // Obtener roles disponibles (con manejo de errores)
+    let roles = [];
+    try {
+      const rolesResponse = await fetch("php/user_api.php?action=get_roles");
+      const rolesData = await rolesResponse.json();
+      if (rolesData.success && rolesData.roles) {
+        roles = rolesData.roles;
+        console.log("✅ Roles cargados:", roles.length);
+      } else {
+        console.warn("⚠️ No se pudieron cargar roles");
+        // Roles por defecto si falla
+        roles = [
+          { id: 1, nombre: "Super Admin" },
+          { id: 2, nombre: "Admin" },
+          { id: 3, nombre: "Técnico" },
+          { id: 4, nombre: "Usuario" },
+        ];
+      }
+    } catch (error) {
+      console.warn("⚠️ Error al cargar roles:", error);
+      // Roles por defecto
+      roles = [
+        { id: 1, nombre: "Super Admin" },
+        { id: 2, nombre: "Admin" },
+        { id: 3, nombre: "Técnico" },
+        { id: 4, nombre: "Usuario" },
+      ];
+    }
+
+    // Crear opciones de áreas
+    let areasOptions = '<option value="">Sin área asignada</option>';
+    if (areas && areas.length > 0) {
+      areasOptions += areas
+        .map((area) => {
+          const selected = user.id_area == area.id ? "selected" : "";
+          return `<option value="${area.id}" ${selected}>${area.nombre}</option>`;
+        })
+        .join("");
+    }
+
+    // Crear opciones de roles
+    let rolesOptions = "";
+    if (roles && roles.length > 0) {
+      rolesOptions = roles
+        .map((rol) => {
+          const selected = user.id_rol_admin == rol.id ? "selected" : "";
+          return `<option value="${rol.id}" ${selected}>${rol.nombre}</option>`;
+        })
+        .join("");
+    }
+
+    // Crear el HTML del modal
+    const modalHTML = `
+            <div class="modal fade" id="editUserModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title">✏️ Editar Usuario</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="editUserForm">
+                                <input type="hidden" name="id" value="${user.id}">
+                                
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Primer Nombre *</label>
+                                        <input type="text" class="form-control" name="primer_nombre" 
+                                               value="${user.primer_nombre || ""}" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Segundo Nombre</label>
+                                        <input type="text" class="form-control" name="segundo_nombre" 
+                                               value="${user.segundo_nombre || ""}">
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Primer Apellido *</label>
+                                        <input type="text" class="form-control" name="primer_apellido" 
+                                               value="${user.primer_apellido || ""}" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Segundo Apellido</label>
+                                        <input type="text" class="form-control" name="segundo_apellido" 
+                                               value="${user.segundo_apellido || ""}">
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Usuario *</label>
+                                        <input type="text" class="form-control" value="${user.usuario || ""}" disabled>
+                                        <small class="text-muted">El usuario no se puede cambiar</small>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Email *</label>
+                                        <input type="email" class="form-control" name="email" 
+                                               value="${user.email || ""}" required>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Teléfono</label>
+                                        <input type="tel" class="form-control" name="telefono" 
+                                               value="${user.telefono || ""}">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Área</label>
+                                        <select class="form-select" name="id_area">
+                                            ${areasOptions}
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Rol *</label>
+                                        <select class="form-select" name="id_rol_admin" required>
+                                            ${rolesOptions}
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Estado *</label>
+                                        <select class="form-select" name="estado" required>
+                                            <option value="1" ${user.estado == 1 ? "selected" : ""}>Activo</option>
+                                            <option value="0" ${user.estado == 0 ? "selected" : ""}>Inactivo</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Nueva Contraseña</label>
+                                    <input type="password" class="form-control" name="password" id="newPassword"
+                                           placeholder="Dejar en blanco para no cambiar" autocomplete="new-password">
+                                    <small class="text-muted">Solo completar si desea cambiar la contraseña (mínimo 6 caracteres)</small>
+                                </div>
+                                
+                                <hr>
+                                
+                                <!-- Contenedor para historial de accesos -->
+                                <div id="historialAccesosContainer"></div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                <i class="bi bi-x-circle"></i> Cancelar
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="submitEditUserForm()">
+                                <i class="bi bi-save"></i> Guardar Cambios
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+    // Eliminar modal existente si existe
+    const existingModal = document.getElementById("editUserModal");
+    if (existingModal) {
+      existingModal.remove();
+    }
+
+    // Agregar modal al DOM
+    document.body.insertAdjacentHTML("beforeend", modalHTML);
+
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById("editUserModal"));
+    modal.show();
+
+    // Cargar historial de accesos si la función existe
+    setTimeout(() => {
+      if (typeof mostrarHistorialAccesos === "function") {
+        mostrarHistorialAccesos(userId, "historialAccesosContainer");
+      }
+    }, 500);
+
+    console.log("✅ Modal mostrado correctamente");
+  } catch (error) {
+    console.error("❌ Error en showEditUserModal:", error);
+    alert("Error al cargar el formulario de edición: " + error.message);
   }
-
-  const modalBody = document.getElementById("editUserModalBody");
-
-  modalBody.innerHTML = `
-        <form id="editUserForm" onsubmit="saveUserEdit(event, ${user.id})">
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label class="form-label">Primer Nombre *</label>
-                        <input type="text" class="form-control" name="primer_nombre" value="${escapeHtml(user.primer_nombre)}" required>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label class="form-label">Segundo Nombre</label>
-                        <input type="text" class="form-control" name="segundo_nombre" value="${escapeHtml(user.segundo_nombre || "")}">
-                    </div>
-                </div>
-            </div>
-            
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label class="form-label">Primer Apellido *</label>
-                        <input type="text" class="form-control" name="primer_apellido" value="${escapeHtml(user.primer_apellido)}" required>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label class="form-label">Segundo Apellido</label>
-                        <input type="text" class="form-control" name="segundo_apellido" value="${escapeHtml(user.segundo_apellido || "")}">
-                    </div>
-                </div>
-            </div>
-            
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label class="form-label">Email *</label>
-                        <input type="email" class="form-control" name="email" value="${escapeHtml(user.email || "")}" required>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label class="form-label">Teléfono</label>
-                        <input type="text" class="form-control" name="telefono" value="${escapeHtml(user.telefono || "")}">
-                    </div>
-                </div>
-            </div>
-            
-            <div class="row">
-                <div class="col-md-4">
-                    <div class="mb-3">
-                        <label class="form-label">Área</label>
-                        <select class="form-select" name="id_area">
-                            ${areasOptions}
-                        </select>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="mb-3">
-                        <label class="form-label">Estado</label>
-                        <select class="form-select" name="estado">
-                            <option value="1" ${user.estado == 1 ? "selected" : ""}>Activo</option>
-                            <option value="0" ${user.estado == 0 ? "selected" : ""}>Inactivo</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="mb-3">
-                        <label class="form-label">Rol</label>
-                        <select class="form-select" name="id_rol_admin">
-                            <option value="1" ${user.id_rol_admin == 1 ? "selected" : ""}>Admin Superior</option>
-                            <option value="2" ${user.id_rol_admin == 2 ? "selected" : ""}>Admin Intermedio</option>
-                            <option value="3" ${user.id_rol_admin == 3 ? "selected" : ""}>Técnico</option>
-                            <option value="4" ${user.id_rol_admin == 4 ? "selected" : ""}>Usuario</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="mb-3">
-                <label class="form-label">Nueva Contraseña (dejar vacío para no cambiar)</label>
-                <input type="password" class="form-control" name="password" autocomplete="new-password">
-            </div>
-            
-            <button type="submit" class="btn btn-primary">💾 Guardar Cambios</button>
-        </form>
-    `;
-
-  const modal = new bootstrap.Modal(document.getElementById("editUserModal"));
-  modal.show();
 }
 
 async function saveUserEdit(e, userId) {
