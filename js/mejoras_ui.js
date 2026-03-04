@@ -1,300 +1,251 @@
 /**
  * mejoras_ui.js
- * Mejoras de UI: ordenamiento, filtros, validaciones
+ * Mejoras de interfaz de usuario para el sistema
  */
 
-console.log("🎨 Cargando mejoras de UI...");
+console.log("🎨 Cargando módulo de mejoras UI...");
 
-// ==================== ORDENAMIENTO DE TABLAS ====================
+// ==================== HABILITAR ORDENAMIENTO EN TABLAS ====================
 
-let currentSortColumn = null;
-let currentSortDirection = "ASC";
-
-function habilitarOrdenamientoTabla(tableId, columns) {
+function habilitarOrdenamientoTabla(tableId, columnsConfig) {
   const table = document.getElementById(tableId);
   if (!table) return;
 
   const headers = table.querySelectorAll("thead th");
+  let sortColumn = null;
+  let sortDirection = "asc";
 
   headers.forEach((header, index) => {
-    const columnName = columns[index];
-    if (!columnName) return;
+    if (columnsConfig[index] && columnsConfig[index].sortable) {
+      header.classList.add("sortable-header");
+      header.style.cursor = "pointer";
+      header.innerHTML += ' <span class="sort-indicator">⇅</span>';
 
-    header.style.cursor = "pointer";
-    header.title = "Click para ordenar";
-
-    // Agregar indicador de ordenamiento
-    const indicator = document.createElement("span");
-    indicator.className = "sort-indicator ms-1";
-    indicator.innerHTML = "↕️";
-    header.appendChild(indicator);
-
-    header.addEventListener("click", () => {
-      ordenarTabla(tableId, columnName, indicator);
-    });
-  });
-}
-
-function ordenarTabla(tableId, columnName, indicator) {
-  // Cambiar dirección si es la misma columna
-  if (currentSortColumn === columnName) {
-    currentSortDirection = currentSortDirection === "ASC" ? "DESC" : "ASC";
-  } else {
-    currentSortColumn = columnName;
-    currentSortDirection = "ASC";
-  }
-
-  // Actualizar indicadores visuales
-  document.querySelectorAll(".sort-indicator").forEach((ind) => {
-    ind.innerHTML = "↕️";
-  });
-
-  indicator.innerHTML = currentSortDirection === "ASC" ? "▲" : "▼";
-
-  // Recargar datos con ordenamiento
-  if (typeof loadUsuarios === "function") {
-    loadUsuarios(currentSortColumn, currentSortDirection);
-  }
-}
-
-// ==================== FILTRO "TODOS" EN USUARIOS ====================
-
-function agregarOpcionTodosEnFiltros() {
-  // Buscar select de usuarios en filtros
-  const selectsUsuarios = document.querySelectorAll("select[multiple]");
-
-  selectsUsuarios.forEach((select) => {
-    // Verificar si ya tiene la opción "Todos"
-    const hasTodos = Array.from(select.options).some(
-      (opt) => opt.value === "todos",
-    );
-
-    if (!hasTodos && select.id.includes("usuario")) {
-      const option = document.createElement("option");
-      option.value = "todos";
-      option.textContent = "📋 Todos los usuarios";
-      select.insertBefore(option, select.firstChild);
-
-      // Seleccionar "Todos" por defecto
-      option.selected = true;
-    }
-  });
-}
-
-// ==================== LÓGICA DE FILTRO "TODOS" ====================
-
-function manejarSeleccionTodos(selectElement) {
-  const options = Array.from(selectElement.options);
-  const todosOption = options.find((opt) => opt.value === "todos");
-
-  if (!todosOption) return;
-
-  selectElement.addEventListener("change", function () {
-    const selectedValues = Array.from(this.selectedOptions).map(
-      (opt) => opt.value,
-    );
-
-    // Si se selecciona "Todos", deseleccionar otros
-    if (selectedValues.includes("todos") && selectedValues.length > 1) {
-      options.forEach((opt) => {
-        if (opt.value !== "todos") {
-          opt.selected = false;
-        }
+      header.addEventListener("click", () => {
+        sortTable(table, index, header);
       });
     }
+  });
 
-    // Si se selecciona otro, deseleccionar "Todos"
-    if (!selectedValues.includes("todos") && selectedValues.length > 0) {
-      todosOption.selected = false;
+  function sortTable(table, columnIndex, headerEl) {
+    const tbody = table.querySelector("tbody");
+    const rows = Array.from(tbody.querySelectorAll("tr"));
+
+    // Determinar dirección
+    if (sortColumn === columnIndex) {
+      sortDirection = sortDirection === "asc" ? "desc" : "asc";
+    } else {
+      sortDirection = "asc";
+      sortColumn = columnIndex;
     }
 
-    // Si no hay nada seleccionado, seleccionar "Todos"
-    if (selectedValues.length === 0) {
-      todosOption.selected = true;
+    // Ordenar
+    rows.sort((a, b) => {
+      const aVal = a.cells[columnIndex].textContent.trim();
+      const bVal = b.cells[columnIndex].textContent.trim();
+
+      // Intentar comparar como números
+      const aNum = parseFloat(aVal);
+      const bNum = parseFloat(bVal);
+
+      if (!isNaN(aNum) && !isNaN(bNum)) {
+        return sortDirection === "asc" ? aNum - bNum : bNum - aNum;
+      }
+
+      // Comparar como texto
+      return sortDirection === "asc"
+        ? aVal.localeCompare(bVal)
+        : bVal.localeCompare(aVal);
+    });
+
+    // Actualizar indicadores
+    table.querySelectorAll(".sort-indicator").forEach((ind) => {
+      ind.textContent = "⇅";
+    });
+
+    const indicator = headerEl.querySelector(".sort-indicator");
+    if (indicator) {
+      indicator.textContent = sortDirection === "asc" ? "↑" : "↓";
+    }
+
+    // Reinsertar filas
+    rows.forEach((row) => tbody.appendChild(row));
+  }
+}
+
+// ==================== AGREGAR OPCIÓN "TODOS" EN FILTROS ====================
+
+function agregarOpcionTodosEnFiltros() {
+  // Buscar selectores de filtro
+  const filtros = document.querySelectorAll(
+    'select[name="estado"], select[name="prioridad"], #filtroEstado, #filtroPrioridad',
+  );
+
+  filtros.forEach((select) => {
+    // Verificar si ya tiene la opción "Todos"
+    const tieneOpcionTodos = Array.from(select.options).some(
+      (opt) => opt.value === "" || opt.value === "todos",
+    );
+
+    if (!tieneOpcionTodos && select.options.length > 0) {
+      const optionTodos = document.createElement("option");
+      optionTodos.value = "";
+      optionTodos.textContent = "Todos";
+      select.insertBefore(optionTodos, select.firstChild);
+      select.selectedIndex = 0;
     }
   });
 }
 
-// ==================== FILTROS EN ESTADÍSTICAS ====================
+// ==================== VALIDAR FORMULARIO DE MENSAJE ====================
 
-function clonarFiltrosAEstadisticas() {
-  const filtrosTickets = document.getElementById("filtrosTickets");
-  const contenedorEstadisticas = document.getElementById("content");
-
-  if (!filtrosTickets || !contenedorEstadisticas) return;
-
-  // Buscar si ya existe la sección de filtros en estadísticas
-  let filtrosEstadisticas = document.getElementById("filtrosEstadisticas");
-
-  if (!filtrosEstadisticas) {
-    // Clonar los filtros
-    filtrosEstadisticas = filtrosTickets.cloneNode(true);
-    filtrosEstadisticas.id = "filtrosEstadisticas";
-
-    // Insertar después del dashboard NPS
-    const npsContainer = document.getElementById("nps-dashboard-container");
-    if (npsContainer) {
-      npsContainer.after(filtrosEstadisticas);
-    }
-
-    // Actualizar IDs para evitar conflictos
-    filtrosEstadisticas.querySelectorAll("[id]").forEach((el) => {
-      el.id = el.id + "_stats";
-    });
-
-    // Conectar botones de filtro
-    const btnFiltrar = filtrosEstadisticas.querySelector(
-      '[onclick*="aplicarFiltros"]',
+async function validarFormularioMensaje(idTicket, formElement) {
+  try {
+    const response = await fetch(
+      `php/tickets_api.php?action=puede_responder&id_ticket=${idTicket}`,
     );
-    const btnLimpiar = filtrosEstadisticas.querySelector(
-      '[onclick*="limpiarFiltros"]',
-    );
+    const data = await response.json();
 
-    if (btnFiltrar) {
-      btnFiltrar.setAttribute("onclick", "aplicarFiltrosEstadisticas()");
+    if (!data.success || !data.puede_responder) {
+      alert(
+        "No se pueden agregar mensajes a tickets cerrados. Por favor, reabre el ticket primero.",
+      );
+      return false;
     }
 
-    if (btnLimpiar) {
-      btnLimpiar.setAttribute("onclick", "limpiarFiltrosEstadisticas()");
-    }
-  }
-}
-
-// ==================== VALIDACIÓN DE MENSAJES EN TICKETS CERRADOS ====================
-
-function validarFormularioMensaje() {
-  const form = document.getElementById("messageForm");
-  if (!form) return;
-
-  const ticketId = form.dataset.ticketId;
-  const ticketEstado = form.dataset.ticketEstado;
-
-  if (ticketEstado === "Cerrado") {
-    // Deshabilitar form
-    const textarea = form.querySelector("textarea");
-    const btnEnviar = form.querySelector('button[type="submit"]');
-
-    if (textarea) textarea.disabled = true;
-    if (btnEnviar) btnEnviar.disabled = true;
-
-    // Mostrar mensaje
-    const alertHTML = `
-            <div class="alert alert-warning">
-                <i class="bi bi-lock"></i>
-                Este ticket está cerrado. No se pueden agregar mensajes.
-                Puedes <a href="#" onclick="mostrarModalReapertura(${ticketId}, 'ticket', '${ticketId}')">reabrirlo</a> si necesitas continuar la conversación.
-            </div>
-        `;
-
-    form.insertAdjacentHTML("beforebegin", alertHTML);
+    return true;
+  } catch (error) {
+    console.error("Error al validar:", error);
+    return true; // Permitir envío si hay error de validación
   }
 }
 
 // ==================== MEJORAR TABLA DE USUARIOS ====================
 
-async function mejorarTablaUsuarios() {
-  const tabla = document.getElementById("usuariosTable");
+function mejorarTablaUsuarios() {
+  const tabla = document.querySelector("#usuariosTable, .table");
   if (!tabla) return;
 
-  // Columnas ordenables
-  const columnasOrdenables = [
-    "id",
-    "nombre_completo",
-    "usuario",
-    "email",
-    "telefono",
-    "area",
-    "id_rol_admin",
-    "estado",
-  ];
+  // Agregar clases de Bootstrap mejoradas
+  tabla.classList.add("table-hover", "table-striped");
 
-  habilitarOrdenamientoTabla("usuariosTable", columnasOrdenables);
-}
-
-// ==================== ACTUALIZAR FUNCIÓN loadUsuarios ====================
-
-// Sobrescribir función original si existe
-if (typeof loadUsuarios === "function") {
-  const originalLoadUsuarios = window.loadUsuarios;
-
-  window.loadUsuarios = async function (ordenar = "id", direccion = "ASC") {
-    try {
-      const url = `php/user_api.php?action=list&ordenar=${ordenar}&direccion=${direccion}`;
-      const response = await fetch(url);
-      const data = await response.json();
-
-      if (data.success) {
-        renderUsuarios(data.usuarios);
-        mejorarTablaUsuarios();
-      }
-    } catch (error) {
-      console.error("Error:", error);
+  // Mejorar celdas de email con iconos
+  const emailCells = tabla.querySelectorAll("td");
+  emailCells.forEach((cell) => {
+    const text = cell.textContent.trim();
+    if (text.includes("@")) {
+      cell.innerHTML = `<i class="bi bi-envelope"></i> ${text}`;
     }
-  };
+  });
 }
 
-// ==================== NÚMERO DE TICKET CON REAPERTURAS ====================
+// ==================== FORMATEAR NÚMERO DE TICKET ====================
 
 function formatearNumeroTicket(ticket) {
-  if (ticket.numero_reapertura && ticket.numero_reapertura > 0) {
+  if (ticket.numero_reapertura > 0) {
     const original = ticket.id_ticket_original || ticket.id;
     return `${original}-${ticket.numero_reapertura}`;
   }
-  return ticket.id;
+  return ticket.id.toString();
 }
 
-// ==================== BADGE DE ESTADO CON ICONOS ====================
+// ==================== BADGES MEJORADOS CON ICONOS ====================
 
 function getBadgeEstado(estado) {
   const badges = {
-    Abierto: '<span class="badge bg-info">📂 Abierto</span>',
-    "En Proceso": '<span class="badge bg-warning">⚙️ En Proceso</span>',
-    Resuelto: '<span class="badge bg-success">✅ Resuelto</span>',
-    Cerrado: '<span class="badge bg-secondary">🔒 Cerrado</span>',
+    Abierto:
+      '<span class="badge bg-info"><i class="bi bi-folder2-open"></i> Abierto</span>',
+    "En Proceso":
+      '<span class="badge bg-warning"><i class="bi bi-gear"></i> En Proceso</span>',
+    Resuelto:
+      '<span class="badge bg-success"><i class="bi bi-check-circle"></i> Resuelto</span>',
+    Cerrado:
+      '<span class="badge bg-secondary"><i class="bi bi-lock"></i> Cerrado</span>',
   };
-
   return badges[estado] || `<span class="badge bg-secondary">${estado}</span>`;
 }
 
-// ==================== BADGE DE PRIORIDAD CON ICONOS ====================
-
 function getBadgePrioridad(prioridad) {
   const badges = {
-    baja: '<span class="badge bg-secondary">🟢 Baja</span>',
-    media: '<span class="badge bg-info">🟡 Media</span>',
-    alta: '<span class="badge bg-warning">🟠 Alta</span>',
-    critica: '<span class="badge bg-danger">🔴 Crítica</span>',
+    baja: '<span class="badge bg-secondary"><i class="bi bi-circle"></i> Baja</span>',
+    media:
+      '<span class="badge bg-info"><i class="bi bi-circle-fill"></i> Media</span>',
+    alta: '<span class="badge bg-warning"><i class="bi bi-exclamation-circle"></i> Alta</span>',
+    critica:
+      '<span class="badge bg-danger"><i class="bi bi-exclamation-triangle"></i> Crítica</span>',
   };
-
   return (
     badges[prioridad] || `<span class="badge bg-secondary">${prioridad}</span>`
   );
 }
 
+// ==================== NOTIFICACIONES TOAST ====================
+
+function mostrarNotificacion(mensaje, tipo = "info") {
+  const toast = document.createElement("div");
+  toast.className = `alert alert-${tipo} position-fixed top-0 end-0 m-3`;
+  toast.style.zIndex = "9999";
+  toast.style.minWidth = "300px";
+  toast.innerHTML = `
+        <div class="d-flex align-items-center">
+            <i class="bi bi-${tipo === "success" ? "check-circle" : "info-circle"} me-2"></i>
+            <div>${mensaje}</div>
+            <button type="button" class="btn-close ms-auto" onclick="this.parentElement.parentElement.remove()"></button>
+        </div>
+    `;
+
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    toast.remove();
+  }, 5000);
+}
+
+// ==================== AGREGAR SKELETON LOADERS ====================
+
+function mostrarSkeleton(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  container.innerHTML = `
+        <div class="placeholder-glow">
+            <div class="placeholder col-12 mb-2"></div>
+            <div class="placeholder col-10 mb-2"></div>
+            <div class="placeholder col-8 mb-2"></div>
+            <div class="placeholder col-12 mb-2"></div>
+            <div class="placeholder col-9"></div>
+        </div>
+    `;
+}
+
 // ==================== AUTO-INICIALIZACIÓN ====================
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Agregar opción "Todos" en filtros
+  // Agregar opción "Todos" después de 500ms
   setTimeout(() => {
     agregarOpcionTodosEnFiltros();
-
-    // Configurar manejo de "Todos"
-    document.querySelectorAll("select[multiple]").forEach((select) => {
-      if (select.id.includes("usuario")) {
-        manejarSeleccionTodos(select);
-      }
-    });
   }, 500);
+
+  // Mejorar tablas cuando se cargan
+  const observer = new MutationObserver(() => {
+    mejorarTablaUsuarios();
+  });
+
+  const contentDiv = document.getElementById("content");
+  if (contentDiv) {
+    observer.observe(contentDiv, { childList: true, subtree: true });
+  }
 });
 
-console.log("✅ Mejoras de UI cargadas");
+console.log("✅ Módulo de mejoras UI cargado");
 
 // Exportar funciones
 window.habilitarOrdenamientoTabla = habilitarOrdenamientoTabla;
 window.agregarOpcionTodosEnFiltros = agregarOpcionTodosEnFiltros;
-window.clonarFiltrosAEstadisticas = clonarFiltrosAEstadisticas;
 window.validarFormularioMensaje = validarFormularioMensaje;
 window.mejorarTablaUsuarios = mejorarTablaUsuarios;
 window.formatearNumeroTicket = formatearNumeroTicket;
 window.getBadgeEstado = getBadgeEstado;
 window.getBadgePrioridad = getBadgePrioridad;
+window.mostrarNotificacion = mostrarNotificacion;
+window.mostrarSkeleton = mostrarSkeleton;

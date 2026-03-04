@@ -39,32 +39,41 @@ function getInitials(name) {
   return (parts[0][0] + (parts[parts.length - 1]?.[0] || "")).toUpperCase();
 }
 
-function showView(view, event) {
+function showView(view, event = null) {
   currentView = view;
   currentPage = 1;
 
-  if (event && event.target) {
-    document.querySelectorAll(".btn-section").forEach((btn) => {
-      btn.classList.remove("btn-primary");
-      btn.classList.add("btn-secondary");
-    });
-    event.target.classList.remove("btn-secondary");
-    event.target.classList.add("btn-primary");
-  } else {
-    document.querySelectorAll(".btn-section").forEach((btn) => {
-      btn.classList.remove("btn-primary");
-      btn.classList.add("btn-secondary");
-    });
-
-    const activeButton = document.querySelector(`[onclick*="${view}"]`);
-    if (activeButton) {
-      activeButton.classList.remove("btn-secondary");
-      activeButton.classList.add("btn-primary");
-    }
+  // DETENER intervalo anterior
+  if (updateInterval) {
+    clearInterval(updateInterval);
   }
+
+  currentView = view;
+  currentPage = 1;
+
+  // Quitar clases activas
+  document.querySelectorAll(".btn-section").forEach((btn) => {
+    btn.classList.remove("btn-primary");
+    btn.classList.add("btn-secondary");
+  });
+
+  // Activar botón correcto
+  if (event && event.currentTarget) {
+    event.currentTarget.classList.remove("btn-secondary");
+    event.currentTarget.classList.add("btn-primary");
+  }
+
+  const content = document.getElementById("content");
+  content.innerHTML = `
+    <div class="text-center py-5">
+      <div class="spinner-border text-primary"></div>
+      <p class="mt-3 text-muted">Cargando...</p>
+    </div>
+  `;
 
   if (view === "tickets") {
     loadTickets();
+    startAutoUpdate();
   } else if (view === "create") {
     renderCreateTicketForm();
   } else if (view === "users") {
@@ -674,7 +683,7 @@ async function showTicketModal(ticket) {
   if (dataAdmins.success) {
     dataAdmins.usuarios.forEach((u) => {
       const selected = ticket.id_asignado == u.id ? "selected" : "";
-      adminsOptions += `<option value="${u.id}" ${selected}>${u.nombre}</option>`;
+      adminsOptions += `<option value="${u.id}" ${selected}>${u.nombre_completo}</option>`;
     });
   }
 
@@ -1009,79 +1018,157 @@ async function addComment(ticketId) {
 // ==================== USUARIOS ====================
 
 async function loadUsers() {
+  console.log("🔄 Cargando usuarios...");
   const content = document.getElementById("content");
-  content.innerHTML =
-    '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
+
+  content.innerHTML = `
+    <div class="text-center py-5">
+      <div class="spinner-border text-primary"></div>
+      <p class="mt-3">Cargando usuarios...</p>
+    </div>
+  `;
 
   try {
     const response = await fetch("php/user_api.php?action=list");
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
     const data = await response.json();
 
-    if (data.success) {
+    console.log("✅ Respuesta API:", data);
+    console.log("✅ Success:", data.success);
+    console.log("✅ Usuarios recibidos:", data.usuarios?.length || 0);
+
+    if (data.success && data.usuarios) {
       allUsers = data.usuarios;
+      console.log("✅ allUsers actualizado:", allUsers.length);
       renderUsers(allUsers);
+    } else {
+      throw new Error(data.message || "No se recibieron usuarios");
     }
   } catch (error) {
-    console.error("Error:", error);
+    console.error("❌ Error en loadUsers:", error);
+    content.innerHTML = `
+      <div class="alert alert-danger">
+        <h5>Error al cargar usuarios</h5>
+        <p>${error.message}</p>
+        <button class="btn btn-primary" onclick="loadUsers()">
+          <i class="bi bi-arrow-clockwise"></i> Reintentar
+        </button>
+      </div>
+    `;
   }
 }
-
 function renderUsers(users) {
+  console.log("🎨 Renderizando", users.length, "usuarios");
+
   const content = document.getElementById("content");
 
-  let html = `
-        <h4 class="mb-3">Usuarios (${users.length})</h4>
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead class="table-light">
-                    <tr>
-                        <th>ID</th>
-                        <th>Nombre</th>
-                        <th>Usuario</th>
-                        <th>Email</th>
-                        <th>Teléfono</th>
-                        <th>Área</th>
-                        <th>Rol</th>
-                        <th>Estado</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
+  if (!content) {
+    console.error("❌ Elemento #content no encontrado");
+    return;
+  }
+
+  if (!users || users.length === 0) {
+    content.innerHTML = `
+      <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> No hay usuarios registrados
+      </div>
     `;
+    return;
+  }
+
+  let html = `
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h4 class="mb-0">Usuarios Registrados (${users.length})</h4>
+      <button class="btn btn-success" onclick="showCreateUserModal()">
+        <i class="bi bi-person-plus"></i> Nuevo Usuario
+      </button>
+    </div>
+    
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>ID</th>
+            <th>Nombre Completo</th>
+            <th>Usuario</th>
+            <th>Email</th>
+            <th>Teléfono</th>
+            <th>Área</th>
+            <th>Rol</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
 
   users.forEach((u) => {
-    const badge = u.estado == 1 ? "bg-success" : "bg-secondary";
-    const estado = u.estado == 1 ? "Activo" : "Inactivo";
+    try {
+      // Calcular valores
+      const estadoBadge = u.estado == 1 ? "bg-success" : "bg-secondary";
+      const estadoTexto = u.estado == 1 ? "Activo" : "Inactivo";
 
-    html += `
-            <tr style="border-bottom: 2px solid #dee2e6;">
-                <td>${u.id}</td>
-                <td>${escapeHtml(u.nombre_completo)}</td>
-                <td><code>${escapeHtml(u.usuario)}</code></td>
-                <td>${escapeHtml(u.email || "-")}</td>
-                <td>${escapeHtml(u.telefono || "-")}</td>
-                <td>${escapeHtml(u.area || "-")}</td>
-                <td>${escapeHtml(u.rol_legible)}</td>
-                <td><span class="badge ${badge}">${estado}</span></td>
-                <td>
-                    <button class="btn btn-sm btn-warning" onclick="editUser(${u.id})">✏️ Editar</button>
-                </td>
-            </tr>
-        `;
+      let rolTexto = "Usuario";
+      if (u.id_rol_admin == 1) rolTexto = "Super Admin";
+      else if (u.id_rol_admin == 2) rolTexto = "Admin";
+      else if (u.id_rol_admin == 3) rolTexto = "Técnico";
+
+      const nombreCompleto =
+        `${u.primer_nombre || ""} ${u.segundo_nombre || ""} ${u.primer_apellido || ""} ${u.segundo_apellido || ""}`.trim();
+      const area = u.area || "-";
+
+      html += `
+        <tr style="border-bottom: 2px solid #dee2e6;">
+          <td><strong>#${u.id}</strong></td>
+          <td>${nombreCompleto}</td>
+          <td><code>${u.usuario}</code></td>
+          <td>${u.email || "-"}</td>
+          <td>${u.telefono || "-"}</td>
+          <td>${area}</td>
+          <td><span class="badge bg-primary">${rolTexto}</span></td>
+          <td><span class="badge ${estadoBadge}">${estadoTexto}</span></td>
+          <td>
+            <button class="btn btn-sm btn-warning" onclick="editUser(${u.id})" title="Editar">
+              <i class="bi bi-pencil"></i>
+            </button>
+            ${
+              u.estado == 1
+                ? `
+              <button class="btn btn-sm btn-danger" onclick="toggleUserStatus(${u.id}, 0)" title="Desactivar">
+                <i class="bi bi-x-circle"></i>
+              </button>
+            `
+                : `
+              <button class="btn btn-sm btn-success" onclick="toggleUserStatus(${u.id}, 1)" title="Activar">
+                <i class="bi bi-check-circle"></i>
+              </button>
+            `
+            }
+          </td>
+        </tr>
+      `;
+    } catch (err) {
+      console.error("Error renderizando usuario:", u, err);
+    }
   });
 
-  html += "</tbody></table></div>";
+  html += `
+        </tbody>
+      </table>
+    </div>
+  `;
+
   content.innerHTML = html;
+  console.log("✅ Tabla de usuarios renderizada correctamente");
 }
 
 async function editUser(userId) {
   try {
-    const response = await fetch(`php/user_api.php?action=get&id=${userId}`);
-    const data = await response.json();
-
-    if (data.success) {
-      showEditUserModal(data.user);
-    }
+    await showEditUserModal(userId);
   } catch (error) {
     console.error("Error:", error);
   }
@@ -1102,7 +1189,7 @@ async function showEditUserModal(userId) {
       return;
     }
 
-    const user = userData.usuario;
+    const user = userData.user;
     console.log("✅ Usuario cargado:", user);
 
     // Obtener áreas disponibles (con manejo de errores)
@@ -1212,11 +1299,12 @@ async function showEditUserModal(userId) {
                                 </div>
                                 
                                 <div class="row">
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label">Usuario *</label>
-                                        <input type="text" class="form-control" value="${user.usuario || ""}" disabled>
-                                        <small class="text-muted">El usuario no se puede cambiar</small>
-                                    </div>
+                                <div class="col-md-6 mb-3">
+    <label class="form-label">Usuario *</label>
+    <input type="text" class="form-control" value="${user.usuario}" disabled>
+    <input type="hidden" name="usuario" value="${user.usuario}">
+    <small class="text-muted">El usuario no se puede cambiar</small>
+</div>
                                     <div class="col-md-6 mb-3">
                                         <label class="form-label">Email *</label>
                                         <input type="email" class="form-control" name="email" 
@@ -1332,7 +1420,7 @@ async function saveUserEdit(e, userId) {
       return;
     }
 
-    if (data.success) {
+    if (data.success == true) {
       alert("✅ Usuario actualizado correctamente");
       bootstrap.Modal.getInstance(
         document.getElementById("editUserModal"),
@@ -1527,7 +1615,11 @@ function createCharts(stats) {
 
 function startAutoUpdate() {
   updateInterval = setInterval(() => {
-    if (currentView === "tickets") {
+    // SOLO ejecutar si realmente estamos viendo tickets
+    if (
+      currentView === "tickets" &&
+      document.getElementById("ticketsTableBody")
+    ) {
       updateTicketTimesRealTime();
     }
   }, 1000);
@@ -1602,3 +1694,37 @@ window.addEventListener("beforeunload", () => {
     clearInterval(updateInterval);
   }
 });
+
+function submitEditUserForm() {
+  const form = document.getElementById("editUserForm");
+  const formData = new FormData(form);
+  formData.append("action", "update");
+
+  console.log("📤 Datos a enviar:");
+  for (let [key, value] of formData.entries()) {
+    console.log(`  ${key}: ${value}`);
+  }
+
+  fetch("php/user_api.php", {
+    method: "POST",
+    body: formData,
+  })
+    .then((response) => response.json())
+    .then((data) => {
+      console.log("📥 Respuesta:", data);
+
+      if (data.success) {
+        alert("✅ Usuario actualizado correctamente");
+        bootstrap.Modal.getInstance(
+          document.getElementById("editUserModal"),
+        ).hide();
+        loadUsers();
+      } else {
+        alert("❌ Error: " + data.message);
+      }
+    })
+    .catch((error) => {
+      console.error("Error:", error);
+      alert("❌ Error de conexión");
+    });
+}

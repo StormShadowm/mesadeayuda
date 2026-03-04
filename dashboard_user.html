@@ -50,7 +50,6 @@
         font-weight: 600;
       }
 
-      /* Estilos para calificaciones */
       .rating-stars i {
         transition: all 0.2s ease;
       }
@@ -173,26 +172,21 @@
     <script src="js/integracion_nps.js"></script>
 
     <script>
-      // Función para cerrar sesión con registro
       async function cerrarSesion() {
         if (confirm("¿Estás seguro que deseas cerrar sesión?")) {
           try {
-            // Registrar logout si la función está disponible
             if (typeof registrarLogout === "function") {
               await registrarLogout();
             } else {
-              // Fallback: redirección directa
               window.location.href = "php/logout.php";
             }
           } catch (error) {
             console.error("Error al cerrar sesión:", error);
-            // Aún así cerrar sesión
             window.location.href = "php/logout.php";
           }
         }
       }
 
-      // Verificación de carga de módulos
       console.log("📋 Dashboard Usuario v5.0 cargado");
       console.log("🔍 Verificando módulos del sistema...");
 
@@ -217,7 +211,6 @@
         }
       }, 1000);
 
-      // Evento para cuando se cierra un ticket (mostrar calificación automáticamente)
       document.addEventListener("ticketClosed", function (event) {
         const ticket = event.detail?.ticket;
         if (ticket && typeof mostrarModalCalificacion === "function") {
