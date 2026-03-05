@@ -475,47 +475,49 @@ function renderTicketRow(ticket) {
     }[ticket.prioridad] || "bg-secondary";
 
   const minutos = ticket.minutos_abierto || 0;
-  const urgencia = Math.min(100, (minutos / 60) * 100);
-
-  let bgColor = "#ffffff";
-  if (urgencia >= 100) {
-    bgColor = "#ffcccc";
-  } else if (urgencia >= 66) {
-    bgColor = "#ffe6cc";
-  } else if (urgencia >= 33) {
-    bgColor = "#fff9cc";
-  }
-
   const tiempoTexto =
     minutos < 60
       ? `${Math.floor(minutos)} min`
       : `${Math.floor(minutos / 60)}h ${Math.floor(minutos % 60)}m`;
-
   const asignadoA = ticket.nombre_asignado
-    ? `<span class="badge bg-info text-dark">${escapeHtml(ticket.nombre_asignado)}</span>`
+    ? `<span class="badge bg-info text-dark">${ticket.nombre_asignado}</span>`
     : '<span class="text-muted small">Sin asignar</span>';
 
+  // CALCULAR NÚMERO CON REAPERTURAS
+  let ticketNumero = ticket.id;
+  if (ticket.numero_reapertura && parseInt(ticket.numero_reapertura) > 0) {
+    const idOriginal = ticket.id_ticket_original || ticket.id;
+    ticketNumero = `${idOriginal}-${ticket.numero_reapertura}`;
+  }
+
+  const badgeReabierto =
+    ticket.numero_reapertura > 0
+      ? '<span class="badge bg-warning text-dark ms-1">🔄</span>'
+      : "";
+
   return `
-        <tr style="background-color: ${bgColor}; transition: background-color 0.3s; border-bottom: 2px solid #dee2e6;" data-ticket-id="${ticket.id}" data-minutos="${minutos}">
-            <td><strong>#${ticket.id}</strong></td>
-            <td>${escapeHtml(ticket.titulo)}</td>
-            <td><small>${escapeHtml(ticket.nombre_usuario || "Desconocido")}</small></td>
-            <td>${asignadoA}</td>
-            <td><span class="badge ${estadoClass}">${ticket.estado}</span></td>
-            <td><span class="badge ${prioridadClass}">${ticket.prioridad.toUpperCase()}</span></td>
-            <td><small>${escapeHtml(ticket.categoria || "-")}</small></td>
-            <td class="text-center"><small>${ticket.tiene_adjunto || "No"}</small></td>
-            <td class="text-center"><span class="badge bg-secondary">${ticket.respuestas || 0}</span></td>
-            <td class="ticket-tiempo"><small>⏱️ ${tiempoTexto}</small></td>
-            <td><small>${formatDate(ticket.fecha_creacion)}</small></td>
-            <td>
-                <button class="btn btn-sm btn-primary" onclick="viewTicketDetail(${ticket.id})" title="Ver detalles">
-                    👁️ Ver
-                </button>
-            </td>
-        </tr>
-    `;
+    <tr data-ticket-id="${ticket.id}">
+      <td><strong>#${ticketNumero}</strong>${badgeReabierto}</td>
+      <td>${ticket.titulo}</td>
+      <td><small>${ticket.nombre_usuario || "Desconocido"}</small></td>
+      <td>${asignadoA}</td>
+      <td><span class="badge ${estadoClass}">${ticket.estado}</span></td>
+      <td><span class="badge ${prioridadClass}">${ticket.prioridad.toUpperCase()}</span></td>
+      <td><small>${ticket.categoria || "-"}</small></td>
+      <td class="text-center"><small>${ticket.tiene_adjunto || "No"}</small></td>
+      <td class="text-center"><span class="badge bg-secondary">${ticket.respuestas || 0}</span></td>
+      <td class="ticket-tiempo"><small>⏱️ ${tiempoTexto}</small></td>
+      <td><small>${formatDate(ticket.fecha_creacion)}</small></td>
+      <td>
+        <button class="btn btn-sm btn-primary" onclick="viewTicketDetail(${ticket.id})">👁️ Ver</button>
+      </td>
+    </tr>
+  `;
 }
+
+// Recargar tickets
+renderTickets(allTickets);
+console.log("✅ Tickets actualizados con formato de reaperturas");
 
 function previousPage() {
   if (currentPage > 1) {
@@ -1538,6 +1540,18 @@ function renderStats(s) {
   setTimeout(() => {
     createCharts(s);
   }, 100);
+
+  // Agregar dashboard NPS al finals
+  if (typeof loadNPSStats === "function") {
+    setTimeout(() => {
+      if (!document.getElementById("nps-dashboard-container")) {
+        const npsDiv = document.createElement("div");
+        npsDiv.id = "nps-dashboard-container";
+        content.appendChild(npsDiv);
+      }
+      loadNPSStats();
+    }, 500);
+  }
 }
 
 function createCharts(stats) {
@@ -1728,3 +1742,147 @@ function submitEditUserForm() {
       alert("❌ Error de conexión");
     });
 }
+
+function insertarBotonesNPSEnTabla() {
+  console.log("🔄 Insertando botones NPS en tickets cerrados...");
+
+  if (!allTickets || allTickets.length === 0) {
+    console.log("❌ No hay tickets cargados");
+    return;
+  }
+
+  const tabla = document.querySelector("table tbody");
+  if (!tabla) {
+    console.log("❌ Tabla no encontrada");
+    return;
+  }
+
+  const filas = tabla.querySelectorAll("tr");
+  let botones_agregados = 0;
+
+  filas.forEach((fila, index) => {
+    const ticket = allTickets[index];
+    if (!ticket) return;
+
+    // Solo tickets cerrados o resueltos
+    if (ticket.estado !== "Cerrado" && ticket.estado !== "Resuelto") return;
+
+    const celdaAcciones = fila.cells[11]; // Columna "Acciones"
+    if (!celdaAcciones) return;
+
+    // Verificar si ya tiene botones NPS
+    if (celdaAcciones.querySelector(".btn-nps-calificar")) return;
+
+    // Crear botones
+    const botonesHTML = `
+      <div class="d-flex gap-1 mt-1 botones-nps">
+        <button class="btn btn-sm btn-warning btn-nps-calificar" 
+                onclick="verificarYCalificar(${ticket.id}, '${ticket.titulo.replace(/'/g, "\\'")}')">
+          <i class="bi bi-star-fill"></i> Calificar
+        </button>
+        <button class="btn btn-sm btn-info btn-nps-reabrir" 
+                onclick="mostrarModalReapertura(${ticket.id}, '${ticket.titulo.replace(/'/g, "\\'")}')">
+          <i class="bi bi-arrow-clockwise"></i> Reabrir
+        </button>
+      </div>
+    `;
+
+    celdaAcciones.insertAdjacentHTML("beforeend", botonesHTML);
+    botones_agregados++;
+  });
+
+  console.log(
+    `✅ Botones NPS agregados a ${botones_agregados} tickets cerrados`,
+  );
+}
+
+// ==================== VERIFICAR Y CALIFICAR ====================
+
+async function verificarYCalificar(idTicket, titulo) {
+  try {
+    const response = await fetch(
+      `php/calificaciones_api.php?action=puede_calificar&id_ticket=${idTicket}`,
+    );
+    const data = await response.json();
+
+    if (data.success && data.puede_calificar) {
+      if (typeof mostrarModalCalificacion === "function") {
+        mostrarModalCalificacion(idTicket, titulo);
+      } else {
+        alert("El módulo de calificaciones no está disponible");
+      }
+    } else {
+      alert(
+        data.motivo || "Este ticket ya fue calificado o no puedes calificarlo",
+      );
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    alert("Error al verificar calificación");
+  }
+}
+
+// ==================== INTERCEPTAR RENDER DE TICKETS ====================
+
+// Guardar función original
+if (typeof renderTickets === "function") {
+  const originalRenderTickets = window.renderTickets;
+
+  window.renderTickets = function () {
+    // Llamar función original
+    originalRenderTickets.apply(this, arguments);
+
+    // Agregar botones NPS después de renderizar
+    setTimeout(() => {
+      insertarBotonesNPSEnTabla();
+    }, 100);
+  };
+
+  console.log("✅ Hook de renderTickets instalado para botones NPS");
+}
+
+// ==================== INTERCEPTAR CARGA DE TICKETS ====================
+
+// También interceptar loadTickets para asegurar que se ejecute
+if (typeof loadTickets === "function") {
+  const originalLoadTickets = window.loadTickets;
+
+  window.loadTickets = async function () {
+    await originalLoadTickets.apply(this, arguments);
+
+    // Agregar botones después de cargar
+    setTimeout(() => {
+      insertarBotonesNPSEnTabla();
+    }, 200);
+  };
+
+  console.log("✅ Hook de loadTickets instalado para botones NPS");
+}
+
+// ==================== EXPORTAR FUNCIONES ====================
+
+window.insertarBotonesNPSEnTabla = insertarBotonesNPSEnTabla;
+window.verificarYCalificar = verificarYCalificar;
+
+// ==================== AUTO-INICIALIZACIÓN ====================
+
+// Agregar botones cuando se carga la página
+document.addEventListener("DOMContentLoaded", function () {
+  // Esperar 2 segundos para que todo cargue
+  setTimeout(() => {
+    if (allTickets && allTickets.length > 0) {
+      insertarBotonesNPSEnTabla();
+    }
+  }, 2000);
+});
+
+// También ejecutar cuando cambia la vista a tickets
+window.addEventListener("viewChanged", function (event) {
+  if (event.detail === "tickets") {
+    setTimeout(() => {
+      insertarBotonesNPSEnTabla();
+    }, 500);
+  }
+});
+
+console.log("✅ Módulo de botones NPS cargado y listo");

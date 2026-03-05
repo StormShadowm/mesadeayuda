@@ -1,5 +1,5 @@
-// user.js - VERSIÓN DEFINITIVA COMPLETA
-// Incluye: Ordenamiento completo, Respuestas, Colores, Navegación
+// user.js - VERSIÓN CON NPS Y REAPERTURAS
+// Incluye: Formato de reaperturas (203-1), Botones NPS, Ordenamiento completo
 
 let currentView = "mytickets";
 let userTickets = [];
@@ -22,6 +22,11 @@ async function loadUserProfile() {
 
     if (data.success) {
       const fullName = data.user.nombre_completo;
+
+      // Guardar ID de usuario para validaciones NPS
+      window.currentUserId = data.user.id;
+      window.sessionUserId = data.user.id;
+
       const userNameElement = document.getElementById("userName");
       if (userNameElement) {
         userNameElement.textContent = fullName;
@@ -364,6 +369,11 @@ function renderMyTickets(tickets) {
   }
 
   content.innerHTML = html;
+
+  // Agregar botones NPS después de renderizar
+  setTimeout(() => {
+    insertarBotonesNPSEnTabla();
+  }, 100);
 }
 
 function renderTicketRow(ticket) {
@@ -400,9 +410,23 @@ function renderTicketRow(ticket) {
       ? `${Math.floor(minutos)} min`
       : `${Math.floor(minutos / 60)}h ${Math.floor(minutos % 60)}m`;
 
+  // ============ CALCULAR NÚMERO DE TICKET CON REAPERTURAS ============
+  let ticketNumero = ticket.id;
+
+  if (ticket.numero_reapertura && parseInt(ticket.numero_reapertura) > 0) {
+    const idOriginal = ticket.id_ticket_original || ticket.id;
+    ticketNumero = `${idOriginal}-${ticket.numero_reapertura}`;
+  }
+
+  // Badge adicional si es ticket reabierto
+  const badgeReabierto =
+    ticket.numero_reapertura > 0
+      ? '<span class="badge bg-warning text-dark ms-1" title="Ticket reabierto">🔄</span>'
+      : "";
+
   return `
         <tr style="background-color: ${bgColor}; transition: background-color 0.3s; border-bottom: 2px solid #dee2e6;" data-ticket-id="${ticket.id}" data-minutos="${minutos}">
-            <td><strong>#${ticket.id}</strong></td>
+            <td><strong>#${ticketNumero}</strong>${badgeReabierto}</td>
             <td>${escapeHtml(ticket.titulo)}</td>
             <td><span class="badge ${estadoClass}">${ticket.estado}</span></td>
             <td><span class="badge ${prioridadClass}">${ticket.prioridad.toUpperCase()}</span></td>
@@ -416,6 +440,78 @@ function renderTicketRow(ticket) {
         </tr>
     `;
 }
+
+// ==================== INSERTAR BOTONES NPS ====================
+
+function insertarBotonesNPSEnTabla() {
+  if (!userTickets || userTickets.length === 0) return;
+
+  const tabla = document.querySelector("table tbody");
+  if (!tabla) return;
+
+  const filas = tabla.querySelectorAll("tr");
+  let botones_agregados = 0;
+
+  filas.forEach((fila, index) => {
+    const ticket = userTickets.find(
+      (t) => t.id == fila.getAttribute("data-ticket-id"),
+    );
+    if (!ticket) return;
+
+    // Solo tickets cerrados o resueltos
+    if (ticket.estado !== "Cerrado" && ticket.estado !== "Resuelto") return;
+
+    const celdaAcciones = fila.cells[8]; // Columna "Acciones"
+    if (!celdaAcciones || celdaAcciones.querySelector(".btn-nps-calificar"))
+      return;
+
+    const botonesHTML = `
+      <div class="d-flex gap-1 mt-1 botones-nps">
+        <button class="btn btn-sm btn-warning btn-nps-calificar" 
+                onclick="verificarYCalificar(${ticket.id}, '${ticket.titulo.replace(/'/g, "\\'")}')">
+          <i class="bi bi-star-fill"></i> Calificar
+        </button>
+        <button class="btn btn-sm btn-info btn-nps-reabrir" 
+                onclick="mostrarModalReapertura(${ticket.id}, '${ticket.titulo.replace(/'/g, "\\'")}')">
+          <i class="bi bi-arrow-clockwise"></i> Reabrir
+        </button>
+      </div>
+    `;
+
+    celdaAcciones.insertAdjacentHTML("beforeend", botonesHTML);
+    botones_agregados++;
+  });
+
+  console.log(
+    `✅ Botones NPS agregados a ${botones_agregados} tickets (usuario)`,
+  );
+}
+
+async function verificarYCalificar(idTicket, titulo) {
+  try {
+    const response = await fetch(
+      `php/calificaciones_api.php?action=puede_calificar&id_ticket=${idTicket}`,
+    );
+    const data = await response.json();
+
+    if (data.success && data.puede_calificar) {
+      if (typeof mostrarModalCalificacion === "function") {
+        mostrarModalCalificacion(idTicket, titulo);
+      } else {
+        alert("El módulo de calificaciones no está disponible");
+      }
+    } else {
+      alert(
+        data.motivo || "Este ticket ya fue calificado o no puedes calificarlo",
+      );
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    alert("Error al verificar calificación");
+  }
+}
+
+// ==================== PAGINACIÓN Y ORDENAMIENTO ====================
 
 function previousPage() {
   if (currentPage > 1) {
@@ -485,6 +581,13 @@ async function viewTicket(ticketId) {
 function showTicketModal(ticket) {
   const modalBody = document.getElementById("ticketModalBody");
 
+  // Calcular número con reaperturas
+  let ticketNumero = ticket.id;
+  if (ticket.numero_reapertura && parseInt(ticket.numero_reapertura) > 0) {
+    const idOriginal = ticket.id_ticket_original || ticket.id;
+    ticketNumero = `${idOriginal}-${ticket.numero_reapertura}`;
+  }
+
   const adjuntoHtml = ticket.archivo_adjunto
     ? `
         <div class="alert alert-info">
@@ -511,9 +614,25 @@ function showTicketModal(ticket) {
     `
       : "";
 
+  // Validar si se puede agregar comentarios (tickets cerrados no permiten)
+  const puedeComentarHTML =
+    ticket.estado === "Cerrado" || ticket.estado === "Resuelto"
+      ? `<div class="alert alert-warning">
+        <i class="bi bi-lock"></i> No puedes agregar comentarios a tickets cerrados. 
+        Para continuar la conversación, reabre el ticket.
+       </div>`
+      : `<div class="mt-3">
+        <textarea id="newComment" class="form-control mb-2" placeholder="Agregar comentario..." rows="3"></textarea>
+        <input type="file" id="commentFile" class="form-control mb-2">
+        <small class="text-muted d-block mb-2">Puedes adjuntar un archivo (máx 50MB)</small>
+        <button class="btn btn-primary btn-sm" onclick="addCommentWithFile(${ticket.id})">
+            💬 Enviar Comentario
+        </button>
+       </div>`;
+
   modalBody.innerHTML = `
         <div class="mb-3">
-            <h5>#${ticket.id} - ${escapeHtml(ticket.titulo)}</h5>
+            <h5>#${ticketNumero} - ${escapeHtml(ticket.titulo)}</h5>
             <span class="badge bg-${ticket.estado === "Abierto" ? "primary" : ticket.estado === "Resuelto" ? "success" : ticket.estado === "Cerrado" ? "secondary" : "warning"}">
                 ${ticket.estado}
             </span>
@@ -564,14 +683,7 @@ function showTicketModal(ticket) {
         
         <hr>
         
-        <div class="mt-3">
-            <textarea id="newComment" class="form-control mb-2" placeholder="Agregar comentario..." rows="3"></textarea>
-            <input type="file" id="commentFile" class="form-control mb-2">
-            <small class="text-muted d-block mb-2">Puedes adjuntar un archivo (máx 50MB)</small>
-            <button class="btn btn-primary btn-sm" onclick="addCommentWithFile(${ticket.id})">
-                💬 Enviar Comentario
-            </button>
-        </div>
+        ${puedeComentarHTML}
     `;
 
   const modal = new bootstrap.Modal(document.getElementById("ticketModal"));
@@ -865,6 +977,7 @@ async function viewTicketDetail(ticketId) {
     alert("Error de conexión");
   }
 }
+
 // ==================== UTILIDADES ====================
 
 function formatDate(d) {
@@ -896,3 +1009,9 @@ window.addEventListener("beforeunload", () => {
     clearInterval(updateInterval);
   }
 });
+
+// Exportar funciones NPS
+window.insertarBotonesNPSEnTabla = insertarBotonesNPSEnTabla;
+window.verificarYCalificar = verificarYCalificar;
+
+console.log("✅ user.js cargado con soporte NPS y reaperturas");
