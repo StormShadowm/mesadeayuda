@@ -152,12 +152,73 @@ elseif ($action === 'get_comments') {
 }
 
 elseif ($action === 'stats') {
-    $where = $user_rol > 3 ? " WHERE id_usuario = $user_id" : "";
+    // Filtros
+    $fecha_desde = isset($_GET['fecha_desde']) && !empty($_GET['fecha_desde']) ? $_GET['fecha_desde'] : '';
+    $fecha_hasta = isset($_GET['fecha_hasta']) && !empty($_GET['fecha_hasta']) ? $_GET['fecha_hasta'] : '';
+    $estado_filtro = isset($_GET['estado']) && !empty($_GET['estado']) ? $_GET['estado'] : '';
+    $prioridad_filtro = isset($_GET['prioridad']) && !empty($_GET['prioridad']) ? $_GET['prioridad'] : '';
     
-    $result = $conn->query("SELECT COUNT(*) as total FROM tickets" . $where);
-    $row = $result->fetch_assoc();
+    $where = $user_rol > 3 ? " WHERE id_usuario = $user_id" : " WHERE 1=1";
     
-    echo json_encode(['success' => true, 'stats' => $row]);
+    if ($fecha_desde) {
+        $where .= " AND DATE(fecha_creacion) >= '$fecha_desde'";
+    }
+    if ($fecha_hasta) {
+        $where .= " AND DATE(fecha_creacion) <= '$fecha_hasta'";
+    }
+    if ($estado_filtro) {
+        $where .= " AND estado = '$estado_filtro'";
+    }
+    if ($prioridad_filtro) {
+        $where .= " AND prioridad = '$prioridad_filtro'";
+    }
+    
+    $query = "SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN estado = 'Abierto' THEN 1 ELSE 0 END) as abiertos,
+        SUM(CASE WHEN estado = 'En Proceso' THEN 1 ELSE 0 END) as en_proceso,
+        SUM(CASE WHEN estado = 'Resuelto' THEN 1 ELSE 0 END) as resueltos,
+        SUM(CASE WHEN estado = 'Cerrado' THEN 1 ELSE 0 END) as cerrados,
+        SUM(CASE WHEN numero_reapertura > 0 THEN 1 ELSE 0 END) as reabiertos,
+        SUM(CASE WHEN prioridad IN ('alta', 'critica') AND estado NOT IN ('Cerrado', 'Resuelto') THEN 1 ELSE 0 END) as urgentes
+    FROM tickets" . $where;
+    
+    $result = $conn->query($query);
+    $stats = $result->fetch_assoc();
+    
+    echo json_encode(['success' => true, 'stats' => $stats]);
+}
+
+elseif ($action === 'get_subcategories') {
+    $id_categoria = isset($_GET['id_categoria']) ? trim($_GET['id_categoria']) : '';
+    
+    if (empty($id_categoria)) {
+        echo json_encode(['success' => false, 'message' => 'ID de categoría requerido']);
+        exit;
+    }
+    
+    // Obtener ID numérico de la categoría
+    $categorias_map = [
+        'hardware' => 1,
+        'software' => 2,
+        'red' => 3,
+        'acceso' => 4,
+        'otro' => 5
+    ];
+    
+    $id_categoria_num = isset($categorias_map[$id_categoria]) ? $categorias_map[$id_categoria] : (int)$id_categoria;
+    
+    $stmt = $conn->prepare("SELECT id, nombre FROM subcategorias WHERE id_categoria = ? AND activo = 1 ORDER BY orden, nombre");
+    $stmt->bind_param("i", $id_categoria_num);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    $subcategorias = array();
+    while ($row = $result->fetch_assoc()) {
+        $subcategorias[] = $row;
+    }
+    
+    echo json_encode(['success' => true, 'subcategorias' => $subcategorias]);
 }
 
 else {

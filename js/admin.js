@@ -625,23 +625,24 @@ function limpiarFiltros() {
 }
 
 async function exportarExcel() {
-  const fecha_desde = document.getElementById("filtro_fecha_desde").value;
-  const fecha_hasta = document.getElementById("filtro_fecha_hasta").value;
-  const estado = document.getElementById("filtro_estado").value;
-  const prioridad = document.getElementById("filtro_prioridad").value;
-  const categoria = document.getElementById("filtro_categoria").value;
+  // Obtener filtros actuales (si existen)
+  const fecha_desde =
+    document.getElementById("filtro_fecha_desde")?.value || "";
+  const fecha_hasta =
+    document.getElementById("filtro_fecha_hasta")?.value || "";
+  const estado = document.getElementById("filtro_estado")?.value || "";
+  const prioridad = document.getElementById("filtro_prioridad")?.value || "";
+  const categoria = document.getElementById("filtro_categoria")?.value || "";
 
-  const params = new URLSearchParams({
-    fecha_desde,
-    fecha_hasta,
-    estado,
-    prioridad,
-    categoria,
-  });
+  const params = new URLSearchParams();
+  if (fecha_desde) params.append("fecha_desde", fecha_desde);
+  if (fecha_hasta) params.append("fecha_hasta", fecha_hasta);
+  if (estado) params.append("estado", estado);
+  if (prioridad) params.append("prioridad", prioridad);
+  if (categoria) params.append("categoria", categoria);
 
   window.open(`php/exportar_excel.php?${params.toString()}`, "_blank");
 }
-
 async function viewTicketDetail(ticketId) {
   currentTicketId = ticketId;
 
@@ -1439,21 +1440,174 @@ async function saveUserEdit(e, userId) {
 
 // ==================== ESTADÍSTICAS ====================
 
-async function loadStats() {
+async function renderStatsWithFilters() {
   const content = document.getElementById("content");
-  content.innerHTML =
+
+  // HTML del filtro
+  const filtroHTML = `
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title mb-3">🔍 Filtros de Estadísticas</h5>
+        <div class="row g-2">
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">Desde</label>
+            <input type="date" id="stats_fecha_desde" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">Hasta</label>
+            <input type="date" id="stats_fecha_hasta" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Estado</label>
+            <select id="stats_estado" class="form-select form-select-sm">
+              <option value="">Todos</option>
+              <option value="Abierto">Abierto</option>
+              <option value="En Proceso">En Proceso</option>
+              <option value="Resuelto">Resuelto</option>
+              <option value="Cerrado">Cerrado</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Prioridad</label>
+            <select id="stats_prioridad" class="form-select form-select-sm">
+              <option value="">Todas</option>
+              <option value="baja">Baja</option>
+              <option value="media">Media</option>
+              <option value="alta">Alta</option>
+              <option value="critica">Crítica</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">&nbsp;</label>
+            <div>
+              <button class="btn btn-primary btn-sm w-100" onclick="aplicarFiltrosStats()">
+                🔍 Filtrar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div id="stats-content-container"></div>
+  `;
+
+  content.innerHTML = filtroHTML;
+
+  // Cargar stats sin filtros inicialmente
+  aplicarFiltrosStats();
+}
+
+// ==================== APLICAR FILTROS A ESTADÍSTICAS ====================
+
+async function aplicarFiltrosStats() {
+  const fecha_desde = document.getElementById("stats_fecha_desde")?.value || "";
+  const fecha_hasta = document.getElementById("stats_fecha_hasta")?.value || "";
+  const estado = document.getElementById("stats_estado")?.value || "";
+  const prioridad = document.getElementById("stats_prioridad")?.value || "";
+
+  const container = document.getElementById("stats-content-container");
+  container.innerHTML =
     '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
 
   try {
-    const response = await fetch("php/tickets_api.php?action=stats");
+    // Construir query params
+    const params = new URLSearchParams();
+    if (fecha_desde) params.append("fecha_desde", fecha_desde);
+    if (fecha_hasta) params.append("fecha_hasta", fecha_hasta);
+    if (estado) params.append("estado", estado);
+    if (prioridad) params.append("prioridad", prioridad);
+
+    const queryString = params.toString() ? "&" + params.toString() : "";
+
+    // Obtener estadísticas filtradas
+    const response = await fetch(
+      `php/tickets_api.php?action=stats${queryString}`,
+    );
     const data = await response.json();
 
     if (data.success) {
-      renderStats(data.stats);
+      // Renderizar stats filtradas
+      let html = renderStatsCards(data.stats);
+
+      // Agregar NPS Dashboard
+      html += '<div id="nps-dashboard-container"></div>';
+
+      container.innerHTML = html;
+
+      // Cargar NPS
+      setTimeout(() => {
+        if (typeof loadNPSStats === "function") {
+          loadNPSStats();
+        }
+      }, 100);
     }
   } catch (error) {
     console.error("Error:", error);
+    container.innerHTML =
+      '<div class="alert alert-danger">Error al cargar estadísticas</div>';
   }
+}
+
+// ==================== RENDERIZAR TARJETAS DE ESTADÍSTICAS ====================
+
+function renderStatsCards(s) {
+  return `
+    <h4 class="mb-4">Estadísticas del Sistema</h4>
+    <div class="row g-3 mb-4">
+      <div class="col-md-2">
+        <div class="card text-center">
+          <div class="card-body">
+            <h2 class="text-primary">${s.total || 0}</h2>
+            <p class="text-muted mb-0">Total</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="card text-center">
+          <div class="card-body">
+            <h2 class="text-info">${s.abiertos || 0}</h2>
+            <p class="text-muted mb-0">Abiertos</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="card text-center">
+          <div class="card-body">
+            <h2 class="text-warning">${s.en_proceso || 0}</h2>
+            <p class="text-muted mb-0">En Proceso</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="card text-center">
+          <div class="card-body">
+            <h2 class="text-success">${s.resueltos || 0}</h2>
+            <p class="text-muted mb-0">Resueltos</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="card text-center">
+          <div class="card-body">
+            <h2 class="text-secondary">${s.cerrados || 0}</h2>
+            <p class="text-muted mb-0">Cerrados</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="card text-center">
+          <div class="card-body">
+            <h2 class="text-warning">${s.reabiertos || 0}</h2>
+            <p class="text-muted mb-0">Reabiertos</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+async function loadStats() {
+  renderStatsWithFilters();
 }
 
 function renderStats(s) {
@@ -1498,24 +1652,14 @@ function renderStats(s) {
                     </div>
                 </div>
             </div>
-            <div class="col-md-2">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <h2 class="text-secondary">${s.cerrados || 0}</h2>
-                        <p class="text-muted mb-0">Cerrados</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2">
-                <div class="card text-center border-danger">
-                    <div class="card-body">
-                        <h2 class="text-danger">${(s.criticos || 0) + (s.altos || 0)}</h2>
-                        <p class="text-muted mb-0">Urgentes</p>
-                    </div>
-                </div>
-            </div>
+<div class="col-md-2">
+    <div class="card text-center">
+        <div class="card-body">
+            <h2 class="text-danger">${s.reabiertos || 0}</h2>
+            <p class="text-muted mb-0">Reabiertos</p>
         </div>
-        
+    </div>
+</div>  
         <div class="row g-3">
             <div class="col-md-6">
                 <div class="card">
