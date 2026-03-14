@@ -2,6 +2,7 @@
 /**
  * exportar_excel.php - Exportador de Reportes a Excel
  * Genera archivo Excel con estadísticas de tickets
+ * VERSIÓN CON COLUMNAS DE REAPERTURAS
  */
 
 session_start();
@@ -88,7 +89,16 @@ $query = "SELECT
         WHEN t.archivo_adjunto IS NOT NULL THEN 'Sí'
         WHEN (SELECT COUNT(*) FROM mensajes_ticket WHERE id_ticket = t.id AND archivo_adjunto IS NOT NULL) > 0 THEN 'Sí'
         ELSE 'No'
-    END as tiene_adjunto
+    END as tiene_adjunto,
+    COALESCE(t.numero_reapertura, 0) as numero_reapertura,
+    CASE 
+        WHEN COALESCE(t.numero_reapertura, 0) > 0 THEN 'Sí'
+        ELSE 'No'
+    END as fue_reabierto,
+    CASE 
+        WHEN t.numero_reapertura > 0 THEN CONCAT(COALESCE(t.id_ticket_original, t.id), '-', t.numero_reapertura)
+        ELSE CAST(t.id AS CHAR)
+    END as ticket_numero
 FROM tickets t
 LEFT JOIN usuarios u ON t.id_usuario = u.id
 LEFT JOIN usuarios a ON t.id_asignado = a.id
@@ -117,9 +127,10 @@ $output = fopen('php://output', 'w');
 // BOM para UTF-8
 fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
 
-// Encabezados
+// Encabezados (CON COLUMNAS DE REAPERTURAS)
 $headers = [
-    'ID',
+    'ID Original',
+    'Número Ticket',
     'Título',
     'Descripción',
     'Categoría',
@@ -131,6 +142,8 @@ $headers = [
     'Teléfono Usuario',
     'Asignado A',
     'Área',
+    'Fue Reabierto',
+    'Veces Reabierto',
     'Fecha Creación',
     'Fecha Actualización',
     'Fecha Cierre',
@@ -146,6 +159,7 @@ fputcsv($output, $headers, ';');
 while ($row = $result->fetch_assoc()) {
     $data = [
         $row['id'],
+        $row['ticket_numero'],
         $row['titulo'],
         $row['descripcion'],
         $row['categoria'],
@@ -157,6 +171,8 @@ while ($row = $result->fetch_assoc()) {
         $row['telefono_usuario'],
         $row['asignado_a'] ?: 'Sin asignar',
         $row['area_usuario'] ?: 'Sin área',
+        $row['fue_reabierto'],
+        $row['numero_reapertura'],
         $row['fecha_creacion'],
         $row['fecha_actualizacion'],
         $row['fecha_cierre'] ?: '-',

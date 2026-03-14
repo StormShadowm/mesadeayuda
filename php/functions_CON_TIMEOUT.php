@@ -13,7 +13,7 @@
  */
 function verificar_timeout_sesion()
 {
-    $timeout_duracion = 120; // 2 minutos en segundos (para pruebas)
+    $timeout_duracion = 1800; // 30 minutos en segundos
 
     // Si no hay timestamp de último acceso, crear uno
     if (!isset($_SESSION['ultimo_acceso'])) {
@@ -24,7 +24,7 @@ function verificar_timeout_sesion()
     // Calcular tiempo transcurrido
     $tiempo_inactivo = time() - $_SESSION['ultimo_acceso'];
 
-    // Si pasaron más del tiempo configurado, destruir sesión
+    // Si pasaron más de 30 minutos, destruir sesión
     if ($tiempo_inactivo > $timeout_duracion) {
         session_unset();
         session_destroy();
@@ -42,7 +42,7 @@ function verificar_timeout_sesion()
  */
 function obtener_tiempo_restante_sesion()
 {
-    $timeout_duracion = 120; // 2 minutos (DEBE SER IGUAL al de verificar_timeout_sesion)
+    $timeout_duracion = 1800; // 30 minutos
 
     if (!isset($_SESSION['ultimo_acceso'])) {
         return $timeout_duracion;
@@ -63,8 +63,8 @@ function extender_sesion()
     $_SESSION['ultimo_acceso'] = time();
     return [
         'success' => true,
-        'mensaje' => 'Sesión extendida por 2 minutos más',
-        'tiempo_restante' => 120,
+        'mensaje' => 'Sesión extendida por 30 minutos más',
+        'tiempo_restante' => 1800,
         'nuevo_timestamp' => time()
     ];
 }

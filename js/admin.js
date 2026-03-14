@@ -7,6 +7,87 @@ let sortDirection = "DESC";
 let updateInterval = null;
 let currentPage = 1;
 let ticketsPerPage = 20;
+let sortColumnUsers = "id";
+let sortDirectionUsers = "ASC";
+
+window.sortColumnUsers = "id";
+window.sortDirectionUsers = "ASC";
+
+window.sortUsers = function (column) {
+  if (window.sortColumnUsers === column) {
+    window.sortDirectionUsers =
+      window.sortDirectionUsers === "ASC" ? "DESC" : "ASC";
+  } else {
+    window.sortColumnUsers = column;
+    window.sortDirectionUsers = "ASC";
+  }
+  allUsers.sort((a, b) => {
+    let valA, valB;
+    if (column === "nombre_completo") {
+      valA =
+        `${a.primer_nombre || ""} ${a.segundo_nombre || ""} ${a.primer_apellido || ""} ${a.segundo_apellido || ""}`
+          .trim()
+          .toLowerCase();
+      valB =
+        `${b.primer_nombre || ""} ${b.segundo_nombre || ""} ${b.primer_apellido || ""} ${b.segundo_apellido || ""}`
+          .trim()
+          .toLowerCase();
+    } else if (
+      column === "id" ||
+      column === "id_rol_admin" ||
+      column === "estado"
+    ) {
+      valA = parseInt(a[column]) || 0;
+      valB = parseInt(b[column]) || 0;
+    } else {
+      valA = (a[column] || "").toString().toLowerCase();
+      valB = (b[column] || "").toString().toLowerCase();
+    }
+    if (window.sortDirectionUsers === "ASC") {
+      return valA > valB ? 1 : valA < valB ? -1 : 0;
+    } else {
+      return valA < valB ? 1 : valA > valB ? -1 : 0;
+    }
+  });
+  renderUsers(allUsers);
+};
+
+window.aplicarFiltrosUsuarios = function () {
+  const busqueda =
+    document.getElementById("filtro_busqueda_usuarios")?.value.toLowerCase() ||
+    "";
+  const area = document.getElementById("filtro_area")?.value || "";
+  const rol = document.getElementById("filtro_rol")?.value || "";
+  const estado = document.getElementById("filtro_estado_usuario")?.value || "";
+  let usuariosFiltrados = allUsers.filter((u) => {
+    if (busqueda) {
+      const nombreCompleto =
+        `${u.primer_nombre || ""} ${u.segundo_nombre || ""} ${u.primer_apellido || ""} ${u.segundo_apellido || ""}`.toLowerCase();
+      const usuario = (u.usuario || "").toLowerCase();
+      const email = (u.email || "").toLowerCase();
+      const coincide =
+        nombreCompleto.includes(busqueda) ||
+        usuario.includes(busqueda) ||
+        email.includes(busqueda);
+      if (!coincide) return false;
+    }
+    if (area && u.area !== area) return false;
+    if (rol && u.id_rol_admin != rol) return false;
+    if (estado !== "" && u.estado != estado) return false;
+    return true;
+  });
+  renderUsers(usuariosFiltrados);
+};
+
+window.limpiarFiltrosUsuarios = function () {
+  document.getElementById("filtro_busqueda_usuarios").value = "";
+  document.getElementById("filtro_area").value = "";
+  document.getElementById("filtro_rol").value = "";
+  document.getElementById("filtro_estado_usuario").value = "";
+  renderUsers(allUsers);
+};
+
+// ==================== FIN FUNCIONES DE USUARIOS ====================
 
 document.addEventListener("DOMContentLoaded", () => {
   loadUserProfile();
@@ -22,12 +103,17 @@ async function loadUserProfile() {
     if (data.success) {
       const fullName = data.user.nombre_completo;
       const initials = getInitials(fullName);
+      const rolId = data.user.id_rol_admin;
 
       const avatar = document.getElementById("userAvatar");
       const menuName = document.getElementById("menuUserName");
 
       if (avatar) avatar.textContent = initials;
       if (menuName) menuName.textContent = fullName;
+
+      // IMPORTANTE: Guardar el rol en sessionStorage
+      sessionStorage.setItem("id_rol_admin", rolId);
+      console.log("✅ Rol de usuario guardado:", rolId);
     }
   } catch (error) {
     console.error("Error:", error);
@@ -665,7 +751,11 @@ async function viewTicketDetail(ticketId) {
 
 async function showTicketModal(ticket) {
   const modalContent = document.getElementById("ticketDetailContent");
-
+  // AGREGAR estas líneas:
+  const usuarioRol = parseInt(sessionStorage.getItem("id_rol_admin")) || 4;
+  const estasCerrado = ticket.estado === "Cerrado";
+  const puedeAbrirTicketCerrado = usuarioRol <= 2;
+  const selectEstadoDisabled = estasCerrado && !puedeAbrirTicketCerrado;
   const adjuntoHtml = ticket.archivo_adjunto
     ? `
         <div class="alert alert-info">
@@ -731,12 +821,14 @@ async function showTicketModal(ticket) {
         <hr>
         
         <div class="row mb-3">
-            <div class="col-md-6">
-                <label class="form-label"><strong>Asignar a:</strong></label>
-                <select class="form-select form-select-sm" onchange="asignarTicket(${ticket.id}, this.value)">
-                    ${adminsOptions}
-                </select>
-            </div>
+<div class="col-md-6">
+    <label class="form-label"><strong>Asignar a:</strong></label>
+    <select class="form-select form-select-sm" 
+        onchange="asignarTicket(${ticket.id}, this.value)"
+        ${selectEstadoDisabled ? "disabled" : ""}>
+        ${adminsOptions}             
+    </select>             
+</div>
             
             <div class="col-md-3">
                 <label class="form-label"><strong>Cambiar Estado:</strong></label>
@@ -792,7 +884,7 @@ async function asignarTicket(ticketId, usuarioId) {
   const formData = new FormData();
   formData.append("action", "assign");
   formData.append("ticket_id", ticketId);
-  formData.append("usuario_asignado", usuarioId);
+  formData.append("id_usuario_asignado", usuarioId); // ✅ CAMBIAR AQUÍ
 
   try {
     const response = await fetch("php/tickets_api.php", {
@@ -803,8 +895,9 @@ async function asignarTicket(ticketId, usuarioId) {
     const data = await response.json();
 
     if (data.success) {
-      alert("✅ Ticket asignado");
+      alert("✅ Técnico asignado correctamente");
       loadTickets();
+      viewTicketDetail(ticketId); // Actualizar vista de detalle también
     } else {
       alert("❌ Error: " + data.message);
     }
@@ -1040,13 +1133,10 @@ async function loadUsers() {
 
     const data = await response.json();
 
-    console.log("✅ Respuesta API:", data);
-    console.log("✅ Success:", data.success);
     console.log("✅ Usuarios recibidos:", data.usuarios?.length || 0);
 
     if (data.success && data.usuarios) {
       allUsers = data.usuarios;
-      console.log("✅ allUsers actualizado:", allUsers.length);
       renderUsers(allUsers);
     } else {
       throw new Error(data.message || "No se recibieron usuarios");
@@ -1064,9 +1154,8 @@ async function loadUsers() {
     `;
   }
 }
-function renderUsers(users) {
-  console.log("🎨 Renderizando", users.length, "usuarios");
 
+function renderUsers(users) {
   const content = document.getElementById("content");
 
   if (!content) {
@@ -1083,7 +1172,70 @@ function renderUsers(users) {
     return;
   }
 
+  // Inicializar variables de ordenamiento si no existen
+  if (typeof window.sortColumnUsers === "undefined") {
+    window.sortColumnUsers = "id";
+    window.sortDirectionUsers = "ASC";
+  }
+
+  // Obtener áreas únicas
+  const areasUnicas = [...new Set(users.map((u) => u.area).filter(Boolean))];
+  let areasOptions = areasUnicas
+    .map((a) => `<option value="${a}">${a}</option>`)
+    .join("");
+
   let html = `
+    <!-- FILTROS -->
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title mb-3">🔍 Filtros de Usuarios</h5>
+        <div class="row g-2">
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">Buscar</label>
+            <input type="text" id="filtro_busqueda_usuarios" class="form-control form-control-sm" 
+                   placeholder="Nombre, apellido, usuario, email...">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Área</label>
+            <select id="filtro_area" class="form-select form-select-sm">
+              <option value="">Todas</option>
+              ${areasOptions}
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Rol</label>
+            <select id="filtro_rol" class="form-select form-select-sm">
+              <option value="">Todos</option>
+              <option value="1">Super Admin</option>
+              <option value="2">Admin</option>
+              <option value="3">Técnico</option>
+              <option value="4">Usuario</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Estado</label>
+            <select id="filtro_estado_usuario" class="form-select form-select-sm">
+              <option value="">Todos</option>
+              <option value="1">Activo</option>
+              <option value="0">Inactivo</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">&nbsp;</label>
+            <div class="d-flex gap-1">
+              <button class="btn btn-primary btn-sm flex-fill" onclick="window.aplicarFiltrosUsuarios()">
+                🔍 Filtrar
+              </button>
+              <button class="btn btn-secondary btn-sm flex-fill" onclick="window.limpiarFiltrosUsuarios()">
+                🔄 Limpiar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HEADER CON CONTADOR -->
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h4 class="mb-0">Usuarios Registrados (${users.length})</h4>
       <button class="btn btn-success" onclick="showCreateUserModal()">
@@ -1091,18 +1243,35 @@ function renderUsers(users) {
       </button>
     </div>
     
+    <!-- TABLA CON ORDENAMIENTO -->
     <div class="table-responsive">
       <table class="table table-hover align-middle">
         <thead class="table-light">
           <tr>
-            <th>ID</th>
-            <th>Nombre Completo</th>
-            <th>Usuario</th>
-            <th>Email</th>
-            <th>Teléfono</th>
-            <th>Área</th>
-            <th>Rol</th>
-            <th>Estado</th>
+            <th style="cursor:pointer" onclick="window.sortUsers('id')">
+              ID ${window.sortColumnUsers === "id" ? (window.sortDirectionUsers === "ASC" ? "▲" : "▼") : "⬍"}
+            </th>
+            <th style="cursor:pointer" onclick="window.sortUsers('nombre_completo')">
+              Nombre Completo ${window.sortColumnUsers === "nombre_completo" ? (window.sortDirectionUsers === "ASC" ? "▲" : "▼") : "⬍"}
+            </th>
+            <th style="cursor:pointer" onclick="window.sortUsers('usuario')">
+              Usuario ${window.sortColumnUsers === "usuario" ? (window.sortDirectionUsers === "ASC" ? "▲" : "▼") : "⬍"}
+            </th>
+            <th style="cursor:pointer" onclick="window.sortUsers('email')">
+              Email ${window.sortColumnUsers === "email" ? (window.sortDirectionUsers === "ASC" ? "▲" : "▼") : "⬍"}
+            </th>
+            <th style="cursor:pointer" onclick="window.sortUsers('telefono')">
+              Teléfono ${window.sortColumnUsers === "telefono" ? (window.sortDirectionUsers === "ASC" ? "▲" : "▼") : "⬍"}
+            </th>
+            <th style="cursor:pointer" onclick="window.sortUsers('area')">
+              Área ${window.sortColumnUsers === "area" ? (window.sortDirectionUsers === "ASC" ? "▲" : "▼") : "⬍"}
+            </th>
+            <th style="cursor:pointer" onclick="window.sortUsers('id_rol_admin')">
+              Rol ${window.sortColumnUsers === "id_rol_admin" ? (window.sortDirectionUsers === "ASC" ? "▲" : "▼") : "⬍"}
+            </th>
+            <th style="cursor:pointer" onclick="window.sortUsers('estado')">
+              Estado ${window.sortColumnUsers === "estado" ? (window.sortDirectionUsers === "ASC" ? "▲" : "▼") : "⬍"}
+            </th>
             <th>Acciones</th>
           </tr>
         </thead>
@@ -1111,7 +1280,6 @@ function renderUsers(users) {
 
   users.forEach((u) => {
     try {
-      // Calcular valores
       const estadoBadge = u.estado == 1 ? "bg-success" : "bg-secondary";
       const estadoTexto = u.estado == 1 ? "Activo" : "Inactivo";
 
@@ -1398,6 +1566,191 @@ async function showEditUserModal(userId) {
   }
 }
 
+async function showCreateUserModal() {
+  try {
+    console.log("📝 Abriendo modal de creación de usuario");
+
+    // Obtener áreas disponibles
+    let areas = [];
+    try {
+      const areasResponse = await fetch("php/user_api.php?action=get_areas");
+      const areasData = await areasResponse.json();
+      if (areasData.success && areasData.areas) {
+        areas = areasData.areas;
+      }
+    } catch (error) {
+      console.warn("⚠️ Error al cargar áreas:", error);
+    }
+
+    // Obtener roles disponibles
+    let roles = [
+      { id: 1, nombre: "Super Admin" },
+      { id: 2, nombre: "Admin" },
+      { id: 3, nombre: "Técnico" },
+      { id: 4, nombre: "Usuario" },
+    ];
+
+    try {
+      const rolesResponse = await fetch("php/user_api.php?action=get_roles");
+      const rolesData = await rolesResponse.json();
+      if (rolesData.success && rolesData.roles) {
+        roles = rolesData.roles;
+      }
+    } catch (error) {
+      console.warn("⚠️ Usando roles por defecto");
+    }
+
+    // Crear opciones de áreas
+    let areasOptions = '<option value="">Sin área asignada</option>';
+    if (areas && areas.length > 0) {
+      areasOptions += areas
+        .map((area) => `<option value="${area.id}">${area.nombre}</option>`)
+        .join("");
+    }
+
+    // Crear opciones de roles
+    let rolesOptions = roles
+      .map((rol) => `<option value="${rol.id}">${rol.nombre}</option>`)
+      .join("");
+
+    // Crear el HTML del modal
+    const modalHTML = `
+      <div class="modal fade" id="createUserModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+              <h5 class="modal-title">➕ Crear Nuevo Usuario</h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <form id="createUserForm">
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Primer Nombre *</label>
+                    <input type="text" class="form-control" name="primer_nombre" required>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Segundo Nombre</label>
+                    <input type="text" class="form-control" name="segundo_nombre">
+                  </div>
+                </div>
+                
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Primer Apellido *</label>
+                    <input type="text" class="form-control" name="primer_apellido" required>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Segundo Apellido</label>
+                    <input type="text" class="form-control" name="segundo_apellido">
+                  </div>
+                </div>
+                
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Usuario *</label>
+                    <input type="text" class="form-control" name="usuario" required>
+                    <small class="text-muted">Sin espacios ni caracteres especiales</small>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Email *</label>
+                    <input type="email" class="form-control" name="email" required>
+                  </div>
+                </div>
+                
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Contraseña *</label>
+                    <input type="password" class="form-control" name="password" required minlength="6">
+                    <small class="text-muted">Mínimo 6 caracteres</small>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Teléfono</label>
+                    <input type="tel" class="form-control" name="telefono">
+                  </div>
+                </div>
+                
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Área</label>
+                    <select class="form-select" name="id_area">
+                      ${areasOptions}
+                    </select>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Rol *</label>
+                    <select class="form-select" name="id_rol_admin" required>
+                      ${rolesOptions}
+                    </select>
+                  </div>
+                </div>
+              </form>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                <i class="bi bi-x-circle"></i> Cancelar
+              </button>
+              <button type="button" class="btn btn-success" onclick="submitCreateUserForm()">
+                <i class="bi bi-save"></i> Crear Usuario
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Eliminar modal existente si existe
+    const existingModal = document.getElementById("createUserModal");
+    if (existingModal) {
+      existingModal.remove();
+    }
+
+    // Agregar modal al DOM
+    document.body.insertAdjacentHTML("beforeend", modalHTML);
+
+    // Mostrar modal
+    const modal = new bootstrap.Modal(
+      document.getElementById("createUserModal"),
+    );
+    modal.show();
+
+    console.log("✅ Modal de creación mostrado correctamente");
+  } catch (error) {
+    console.error("❌ Error en showCreateUserModal:", error);
+    alert("Error al cargar el formulario de creación: " + error.message);
+  }
+}
+
+async function submitCreateUserForm() {
+  const form = document.getElementById("createUserForm");
+  const formData = new FormData(form);
+  formData.append("action", "create");
+
+  console.log("📤 Creando usuario...");
+
+  try {
+    const response = await fetch("php/user_api.php", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert("✅ Usuario creado correctamente");
+      bootstrap.Modal.getInstance(
+        document.getElementById("createUserModal"),
+      ).hide();
+      loadUsers();
+    } else {
+      alert("❌ Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    alert("❌ Error de conexión");
+  }
+}
+
 async function saveUserEdit(e, userId) {
   e.preventDefault();
 
@@ -1610,92 +1963,82 @@ async function loadStats() {
   renderStatsWithFilters();
 }
 
-function renderStats(s) {
-  const content = document.getElementById("content");
-
-  content.innerHTML = `
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h4>Estadísticas del Sistema</h4>
-            <button class="btn btn-success" onclick="exportarExcel()">📥 Descargar Reporte Excel</button>
-        </div>
-        
-        <div class="row g-3 mb-4">
-            <div class="col-md-2">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <h2 class="text-primary">${s.total || 0}</h2>
-                        <p class="text-muted mb-0">Total</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <h2 class="text-info">${s.abiertos || 0}</h2>
-                        <p class="text-muted mb-0">Abiertos</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <h2 class="text-warning">${s.en_proceso || 0}</h2>
-                        <p class="text-muted mb-0">En Proceso</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <h2 class="text-success">${s.resueltos || 0}</h2>
-                        <p class="text-muted mb-0">Resueltos</p>
-                    </div>
-                </div>
-            </div>
-<div class="col-md-2">
-    <div class="card text-center">
-        <div class="card-body">
-            <h2 class="text-danger">${s.reabiertos || 0}</h2>
-            <p class="text-muted mb-0">Reabiertos</p>
-        </div>
+function renderStatsCards(s) {
+  return `
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h4 class="mb-0">Estadísticas del Sistema</h4>
+      <button class="btn btn-success btn-sm" onclick="exportarTicketsExcel()">
+        <i class="bi bi-download"></i> Descargar Tickets Excel
+      </button>
     </div>
-</div>  
-        <div class="row g-3">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Distribución por Estado</h5>
-                        <canvas id="chartEstados"></canvas>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Distribución por Prioridad</h5>
-                        <canvas id="chartPrioridades"></canvas>
-                    </div>
-                </div>
-            </div>
+    
+    <div class="row g-3 mb-4">
+      <div class="col-md-2">
+        <div class="card text-center">
+          <div class="card-body">
+            <h2 class="text-primary">${s.total || 0}</h2>
+            <p class="text-muted mb-0">Total</p>
+          </div>
         </div>
-    `;
+      </div>
+      <div class="col-md-2">
+        <div class="card text-center">
+          <div class="card-body">
+            <h2 class="text-info">${s.abiertos || 0}</h2>
+            <p class="text-muted mb-0">Abiertos</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="card text-center">
+          <div class="card-body">
+            <h2 class="text-warning">${s.en_proceso || 0}</h2>
+            <p class="text-muted mb-0">En Proceso</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="card text-center">
+          <div class="card-body">
+            <h2 class="text-success">${s.resueltos || 0}</h2>
+            <p class="text-muted mb-0">Resueltos</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="card text-center">
+          <div class="card-body">
+            <h2 class="text-secondary">${s.cerrados || 0}</h2>
+            <p class="text-muted mb-0">Cerrados</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="card text-center">
+          <div class="card-body">
+            <h2 class="text-warning">${s.reabiertos || 0}</h2>
+            <p class="text-muted mb-0">Reabiertos</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
 
-  // Crear gráficos
-  setTimeout(() => {
-    createCharts(s);
-  }, 100);
+async function exportarTicketsExcel() {
+  // Obtener filtros de estadísticas (si existen)
+  const fecha_desde = document.getElementById("stats_fecha_desde")?.value || "";
+  const fecha_hasta = document.getElementById("stats_fecha_hasta")?.value || "";
+  const estado = document.getElementById("stats_estado")?.value || "";
+  const prioridad = document.getElementById("stats_prioridad")?.value || "";
 
-  // Agregar dashboard NPS al finals
-  if (typeof loadNPSStats === "function") {
-    setTimeout(() => {
-      if (!document.getElementById("nps-dashboard-container")) {
-        const npsDiv = document.createElement("div");
-        npsDiv.id = "nps-dashboard-container";
-        content.appendChild(npsDiv);
-      }
-      loadNPSStats();
-    }, 500);
-  }
+  const params = new URLSearchParams();
+  if (fecha_desde) params.append("fecha_desde", fecha_desde);
+  if (fecha_hasta) params.append("fecha_hasta", fecha_hasta);
+  if (estado) params.append("estado", estado);
+  if (prioridad) params.append("prioridad", prioridad);
+
+  window.open(`php/exportar_excel.php?${params.toString()}`, "_blank");
 }
 
 function createCharts(stats) {
@@ -1728,6 +2071,93 @@ function createCharts(stats) {
       },
     });
   }
+
+  window.sortUsers = function (column) {
+    if (window.sortColumnUsers === column) {
+      window.sortDirectionUsers =
+        window.sortDirectionUsers === "ASC" ? "DESC" : "ASC";
+    } else {
+      window.sortColumnUsers = column;
+      window.sortDirectionUsers = "ASC";
+    }
+
+    allUsers.sort((a, b) => {
+      let valA, valB;
+
+      if (column === "nombre_completo") {
+        valA =
+          `${a.primer_nombre || ""} ${a.segundo_nombre || ""} ${a.primer_apellido || ""} ${a.segundo_apellido || ""}`
+            .trim()
+            .toLowerCase();
+        valB =
+          `${b.primer_nombre || ""} ${b.segundo_nombre || ""} ${b.primer_apellido || ""} ${b.segundo_apellido || ""}`
+            .trim()
+            .toLowerCase();
+      } else if (
+        column === "id" ||
+        column === "id_rol_admin" ||
+        column === "estado"
+      ) {
+        valA = parseInt(a[column]) || 0;
+        valB = parseInt(b[column]) || 0;
+      } else {
+        valA = (a[column] || "").toString().toLowerCase();
+        valB = (b[column] || "").toString().toLowerCase();
+      }
+
+      if (window.sortDirectionUsers === "ASC") {
+        return valA > valB ? 1 : valA < valB ? -1 : 0;
+      } else {
+        return valA < valB ? 1 : valA > valB ? -1 : 0;
+      }
+    });
+
+    renderUsers(allUsers);
+  };
+
+  window.aplicarFiltrosUsuarios = function () {
+    const busqueda =
+      document
+        .getElementById("filtro_busqueda_usuarios")
+        ?.value.toLowerCase() || "";
+    const area = document.getElementById("filtro_area")?.value || "";
+    const rol = document.getElementById("filtro_rol")?.value || "";
+    const estado =
+      document.getElementById("filtro_estado_usuario")?.value || "";
+
+    let usuariosFiltrados = allUsers.filter((u) => {
+      if (busqueda) {
+        const nombreCompleto =
+          `${u.primer_nombre || ""} ${u.segundo_nombre || ""} ${u.primer_apellido || ""} ${u.segundo_apellido || ""}`.toLowerCase();
+        const usuario = (u.usuario || "").toLowerCase();
+        const email = (u.email || "").toLowerCase();
+
+        const coincide =
+          nombreCompleto.includes(busqueda) ||
+          usuario.includes(busqueda) ||
+          email.includes(busqueda);
+
+        if (!coincide) return false;
+      }
+
+      if (area && u.area !== area) return false;
+      if (rol && u.id_rol_admin != rol) return false;
+      if (estado !== "" && u.estado != estado) return false;
+
+      return true;
+    });
+
+    renderUsers(usuariosFiltrados);
+  };
+
+  window.limpiarFiltrosUsuarios = function () {
+    document.getElementById("filtro_busqueda_usuarios").value = "";
+    document.getElementById("filtro_area").value = "";
+    document.getElementById("filtro_rol").value = "";
+    document.getElementById("filtro_estado_usuario").value = "";
+
+    renderUsers(allUsers);
+  };
 
   // Gráfico de Prioridades
   const ctxPrioridades = document.getElementById("chartPrioridades");
@@ -2007,26 +2437,98 @@ if (typeof loadTickets === "function") {
 
 window.insertarBotonesNPSEnTabla = insertarBotonesNPSEnTabla;
 window.verificarYCalificar = verificarYCalificar;
+window.sortUsers = sortUsers;
+window.aplicarFiltrosUsuarios = aplicarFiltrosUsuarios;
+window.limpiarFiltrosUsuarios = limpiarFiltrosUsuarios;
+window.sortColumnUsers = "id";
+window.sortDirectionUsers = "ASC";
+window.showCreateUserModal = showCreateUserModal;
+window.submitCreateUserForm = submitCreateUserForm;
 
-// ==================== AUTO-INICIALIZACIÓN ====================
+// ==================== FUNCIONES DE USUARIOS - FILTROS Y ORDENAMIENTO ====================
 
-// Agregar botones cuando se carga la página
-document.addEventListener("DOMContentLoaded", function () {
-  // Esperar 2 segundos para que todo cargue
-  setTimeout(() => {
-    if (allTickets && allTickets.length > 0) {
-      insertarBotonesNPSEnTabla();
-    }
-  }, 2000);
-});
+window.sortColumnUsers = "id";
+window.sortDirectionUsers = "ASC";
 
-// También ejecutar cuando cambia la vista a tickets
-window.addEventListener("viewChanged", function (event) {
-  if (event.detail === "tickets") {
-    setTimeout(() => {
-      insertarBotonesNPSEnTabla();
-    }, 500);
+window.sortUsers = function (column) {
+  if (window.sortColumnUsers === column) {
+    window.sortDirectionUsers =
+      window.sortDirectionUsers === "ASC" ? "DESC" : "ASC";
+  } else {
+    window.sortColumnUsers = column;
+    window.sortDirectionUsers = "ASC";
   }
-});
 
-console.log("✅ Módulo de botones NPS cargado y listo");
+  allUsers.sort((a, b) => {
+    let valA, valB;
+
+    if (column === "nombre_completo") {
+      valA =
+        `${a.primer_nombre || ""} ${a.segundo_nombre || ""} ${a.primer_apellido || ""} ${a.segundo_apellido || ""}`
+          .trim()
+          .toLowerCase();
+      valB =
+        `${b.primer_nombre || ""} ${b.segundo_nombre || ""} ${b.primer_apellido || ""} ${b.segundo_apellido || ""}`
+          .trim()
+          .toLowerCase();
+    } else if (
+      column === "id" ||
+      column === "id_rol_admin" ||
+      column === "estado"
+    ) {
+      valA = parseInt(a[column]) || 0;
+      valB = parseInt(b[column]) || 0;
+    } else {
+      valA = (a[column] || "").toString().toLowerCase();
+      valB = (b[column] || "").toString().toLowerCase();
+    }
+
+    if (window.sortDirectionUsers === "ASC") {
+      return valA > valB ? 1 : valA < valB ? -1 : 0;
+    } else {
+      return valA < valB ? 1 : valA > valB ? -1 : 0;
+    }
+  });
+
+  renderUsers(allUsers);
+};
+
+window.aplicarFiltrosUsuarios = function () {
+  const busqueda =
+    document.getElementById("filtro_busqueda_usuarios")?.value.toLowerCase() ||
+    "";
+  const area = document.getElementById("filtro_area")?.value || "";
+  const rol = document.getElementById("filtro_rol")?.value || "";
+  const estado = document.getElementById("filtro_estado_usuario")?.value || "";
+
+  let usuariosFiltrados = allUsers.filter((u) => {
+    if (busqueda) {
+      const nombreCompleto =
+        `${u.primer_nombre || ""} ${u.segundo_nombre || ""} ${u.primer_apellido || ""} ${u.segundo_apellido || ""}`.toLowerCase();
+      const usuario = (u.usuario || "").toLowerCase();
+      const email = (u.email || "").toLowerCase();
+
+      const coincide =
+        nombreCompleto.includes(busqueda) ||
+        usuario.includes(busqueda) ||
+        email.includes(busqueda);
+      if (!coincide) return false;
+    }
+    if (area && u.area !== area) return false;
+    if (rol && u.id_rol_admin != rol) return false;
+    if (estado !== "" && u.estado != estado) return false;
+    return true;
+  });
+
+  renderUsers(usuariosFiltrados);
+};
+
+window.limpiarFiltrosUsuarios = function () {
+  document.getElementById("filtro_busqueda_usuarios").value = "";
+  document.getElementById("filtro_area").value = "";
+  document.getElementById("filtro_rol").value = "";
+  document.getElementById("filtro_estado_usuario").value = "";
+  renderUsers(allUsers);
+};
+
+console.log("✅ admin.js cargado completamente");

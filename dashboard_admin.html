@@ -102,6 +102,351 @@
       }
     </style>
   </head>
+
+<script>
+// ==================== CONTROL DE SESIÓN POR INACTIVIDAD ====================
+
+const SessionTimeout = {
+  timeout: 2 * 60 * 1000,
+  warningTime: 1 * 60 * 1000,
+  checkInterval: 30 * 1000,
+  timerCheck: null,
+  lastActivity: Date.now(),
+  warningShown: false,
+  modalElement: null,
+  countdownInterval: null,
+  expiredShown: false,
+  
+  init: function() {
+    console.log('🕐 Sistema de timeout de sesión iniciado (2 minutos)');
+    this.cleanupModals();
+    this.createWarningModal();
+    setTimeout(() => { this.createSessionIndicator(); }, 1000);
+    this.setupActivityListeners();
+    this.startPeriodicCheck();
+    this.checkSession();
+  },
+  
+  cleanupModals: function() {
+    const oldWarning = document.getElementById('sessionWarningModal');
+    const oldExpired = document.getElementById('sessionExpiredModal');
+    if (oldWarning) oldWarning.remove();
+    if (oldExpired) oldExpired.remove();
+    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+  },
+  
+  createSessionIndicator: function() {
+    const userNameContainer = document.getElementById('menuUserName')?.parentElement;
+    if (!userNameContainer) {
+      console.warn('⚠️ No se encontró contenedor de usuario');
+      return;
+    }
+    const oldIndicator = document.getElementById('sessionTimeIndicator');
+    if (oldIndicator) oldIndicator.remove();
+    const indicatorHTML = `
+      <div id="sessionTimeIndicator" class="d-flex align-items-center me-3" style="font-size: 0.9rem;">
+        <i class="bi bi-clock-history me-2 text-muted"></i>
+        <span id="sessionTimeText" class="text-muted fw-semibold">--:--</span>
+      </div>
+    `;
+    userNameContainer.insertAdjacentHTML('beforebegin', indicatorHTML);
+    console.log('✅ Indicador de tiempo creado');
+    this.startTimeIndicatorUpdate();
+  },
+  
+  startTimeIndicatorUpdate: function() {
+    const updateIndicator = async () => {
+      try {
+        const response = await fetch('php/session_check.php?action=check');
+        const data = await response.json();
+        if (!data.session_active) return;
+        const tiempoRestante = data.tiempo_restante;
+        const minutos = Math.floor(tiempoRestante / 60);
+        const segundos = tiempoRestante % 60;
+        const timeText = document.getElementById('sessionTimeText');
+        const timeIcon = document.querySelector('#sessionTimeIndicator i');
+        if (timeText) {
+          timeText.textContent = `${minutos}:${segundos.toString().padStart(2, '0')}`;
+          if (tiempoRestante <= 30) {
+            timeText.className = 'text-danger fw-bold';
+            timeIcon.className = 'bi bi-clock-history me-2 text-danger';
+            timeText.style.animation = 'blink 1s infinite';
+          } else if (tiempoRestante <= 60) {
+            timeText.className = 'text-warning fw-bold';
+            timeIcon.className = 'bi bi-clock-history me-2 text-warning';
+            timeText.style.animation = '';
+          } else {
+            timeText.className = 'text-muted fw-semibold';
+            timeIcon.className = 'bi bi-clock-history me-2 text-muted';
+            timeText.style.animation = '';
+          }
+        }
+      } catch (error) {
+        console.error('Error al actualizar indicador:', error);
+      }
+    };
+    updateIndicator();
+    setInterval(updateIndicator, 1000);
+  },
+  
+  createWarningModal: function() {
+    const modalHTML = `
+      <style>
+        @keyframes blink {
+          0%, 50% { opacity: 1; }
+          51%, 100% { opacity: 0.3; }
+        }
+      </style>
+      <div class="modal fade" id="sessionWarningModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content border-warning">
+            <div class="modal-header bg-warning text-dark">
+              <h5 class="modal-title">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                Sesión por expirar
+              </h5>
+            </div>
+            <div class="modal-body text-center py-4">
+              <div class="mb-3">
+                <i class="bi bi-clock-history" style="font-size: 3rem; color: #ffc107;"></i>
+              </div>
+              <h5 class="mb-3">Tu sesión está por expirar por inactividad</h5>
+              <p class="text-muted mb-2">Tiempo restante:</p>
+              <h2 class="text-warning mb-4" id="sessionCountdown">1:00</h2>
+              <p class="small text-muted">Si no hay actividad, serás desconectado automáticamente</p>
+            </div>
+            <div class="modal-footer justify-content-center">
+              <button type="button" class="btn btn-warning btn-lg" onclick="SessionTimeout.extendSession()">
+                <i class="bi bi-arrow-clockwise me-2"></i>Continuar trabajando
+              </button>
+              <button type="button" class="btn btn-outline-secondary" onclick="SessionTimeout.logout()">
+                <i class="bi bi-box-arrow-right me-2"></i>Cerrar sesión
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    this.modalElement = new bootstrap.Modal(document.getElementById('sessionWarningModal'));
+  },
+  
+  setupActivityListeners: function() {
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+    events.forEach(event => {
+      document.addEventListener(event, () => { this.resetTimer(); }, { passive: true });
+    });
+    console.log('✅ Listeners de actividad configurados');
+  },
+  
+  resetTimer: function() {
+    this.lastActivity = Date.now();
+    if (this.warningShown) this.hideWarning();
+    this.pingServer();
+  },
+  
+  pingServer: function() {
+    if (!this.lastPing || (Date.now() - this.lastPing) > 30000) {
+      fetch('php/session_check.php?action=ping', { method: 'GET' }).catch(() => {});
+      this.lastPing = Date.now();
+    }
+  },
+  
+  startPeriodicCheck: function() {
+    this.timerCheck = setInterval(() => { this.checkSession(); }, this.checkInterval);
+  },
+  
+  checkSession: async function() {
+    try {
+      const response = await fetch('php/session_check.php?action=check');
+      const data = await response.json();
+      if (!data.session_active) {
+        console.warn('⚠️ Sesión expirada - redirigiendo al login');
+        this.sessionExpired();
+        return;
+      }
+      const tiempoRestante = data.tiempo_restante * 1000;
+      if (tiempoRestante <= this.warningTime && !this.warningShown) {
+        this.showWarning(tiempoRestante);
+      }
+    } catch (error) {
+      console.error('Error al verificar sesión:', error);
+    }
+  },
+  
+  showWarning: function(tiempoRestante) {
+    console.warn('⚠️ Mostrando advertencia de sesión');
+    this.warningShown = true;
+    this.modalElement.show();
+    this.startCountdown(tiempoRestante);
+  },
+  
+  hideWarning: function() {
+    this.warningShown = false;
+    this.modalElement.hide();
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = null;
+    }
+  },
+  
+  startCountdown: function(tiempoInicial) {
+    let tiempoRestante = tiempoInicial;
+    const countdownElement = document.getElementById('sessionCountdown');
+    this.updateCountdown(countdownElement, tiempoRestante);
+    this.countdownInterval = setInterval(() => {
+      tiempoRestante -= 1000;
+      if (tiempoRestante <= 0) {
+        clearInterval(this.countdownInterval);
+        this.sessionExpired();
+        return;
+      }
+      this.updateCountdown(countdownElement, tiempoRestante);
+    }, 1000);
+  },
+  
+  updateCountdown: function(element, milliseconds) {
+    const segundosTotales = Math.floor(milliseconds / 1000);
+    const minutos = Math.floor(segundosTotales / 60);
+    const segundos = segundosTotales % 60;
+    element.textContent = `${minutos}:${segundos.toString().padStart(2, '0')}`;
+    if (segundosTotales <= 30) {
+      element.className = 'text-danger mb-4 fw-bold';
+      element.style.fontSize = '2.5rem';
+    }
+  },
+  
+  extendSession: async function() {
+    try {
+      const response = await fetch('php/session_check.php?action=extend');
+      const data = await response.json();
+      if (data.success) {
+        console.log('✅ Sesión extendida por 2 minutos más');
+        this.hideWarning();
+        this.resetTimer();
+        this.showSuccessNotification();
+      }
+    } catch (error) {
+      console.error('Error al extender sesión:', error);
+      alert('Error al extender la sesión.');
+    }
+  },
+  
+  showSuccessNotification: function() {
+    const notification = document.createElement('div');
+    notification.className = 'position-fixed top-0 start-50 translate-middle-x mt-3';
+    notification.style.zIndex = '9999';
+    notification.innerHTML = `
+      <div class="alert alert-success alert-dismissible fade show shadow-lg" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>
+        <strong>Sesión extendida</strong> - Tu sesión ha sido extendida por 2 minutos más
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    `;
+    document.body.appendChild(notification);
+    setTimeout(() => { notification.remove(); }, 5000);
+  },
+  
+  logout: function() {
+    console.log('🚪 Cerrando sesión manualmente');
+    this.cleanup();
+    window.location.href = 'php/logout.php';
+  },
+  
+  sessionExpired: function() {
+    if (this.expiredShown) return;
+    this.expiredShown = true;
+    console.error('❌ Sesión expirada por inactividad');
+    this.cleanup();
+    if (this.warningShown) this.modalElement.hide();
+    this.showExpiredModal();
+  },
+  
+  showExpiredModal: function() {
+    const expiredModalHTML = `
+      <div class="modal fade show" id="sessionExpiredModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" style="display: block; background: rgba(0,0,0,0.7);">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content border-danger">
+            <div class="modal-header bg-danger text-white">
+              <h5 class="modal-title">
+                <i class="bi bi-exclamation-octagon-fill me-2"></i>Sesión Expirada
+              </h5>
+            </div>
+            <div class="modal-body text-center py-5">
+              <div class="mb-4">
+                <i class="bi bi-hourglass-bottom text-danger" style="font-size: 4rem;"></i>
+              </div>
+              <h4 class="mb-3">Tu sesión ha expirado</h4>
+              <p class="text-muted mb-4">
+                Tu sesión se cerró automáticamente debido a inactividad.<br>
+                Serás redirigido a la página de inicio de sesión.
+              </p>
+              <div class="spinner-border text-danger mb-3" role="status">
+                <span class="visually-hidden">Redirigiendo...</span>
+              </div>
+              <p class="small text-muted">Redirigiendo en <span id="redirectCountdown">3</span> segundos...</p>
+            </div>
+            <div class="modal-footer justify-content-center">
+              <button type="button" class="btn btn-danger" onclick="SessionTimeout.redirectNow()">
+                <i class="bi bi-box-arrow-in-right me-2"></i>Ir al Login Ahora
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', expiredModalHTML);
+    let countdown = 3;
+    const countdownElement = document.getElementById('redirectCountdown');
+    const redirectTimer = setInterval(() => {
+      countdown--;
+      if (countdownElement) countdownElement.textContent = countdown;
+      if (countdown <= 0) {
+        clearInterval(redirectTimer);
+        this.redirectNow();
+      }
+    }, 1000);
+  },
+  
+  redirectNow: function() {
+    console.log('🔄 Redirigiendo a index.html');
+    this.cleanup();
+    this.cleanupModals();
+    document.body.innerHTML = '<div style="text-align:center; padding:50px;">Redirigiendo...</div>';
+    window.location.replace('index.html');
+  },
+  
+  cleanup: function() {
+    if (this.timerCheck) {
+      clearInterval(this.timerCheck);
+      this.timerCheck = null;
+    }
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = null;
+    }
+  },
+  
+  destroy: function() {
+    this.cleanup();
+    this.cleanupModals();
+  }
+};
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => { SessionTimeout.init(); });
+} else {
+  SessionTimeout.init();
+}
+
+console.log('✅ Módulo de control de sesión cargado');
+</script>
+</body>
+</html>
+
   <body>
     <!-- Navbar -->
     <nav

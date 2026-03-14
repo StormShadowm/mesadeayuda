@@ -1,5 +1,4 @@
 <?php
-
 /**
  * admin_api.php - CORREGIDO (sin columna 'efectivo')
  */
@@ -65,10 +64,9 @@ try {
 
 // ==================== FUNCIONES ====================
 
-function obtener_estadisticas_admin()
-{
+function obtener_estadisticas_admin() {
     global $conn;
-
+    
     $query = "SELECT 
               COUNT(*) as total_tickets,
               SUM(CASE WHEN estado = 'Abierto' THEN 1 ELSE 0 END) as abiertos,
@@ -80,61 +78,59 @@ function obtener_estadisticas_admin()
               SUM(CASE WHEN prioridad = 'media' THEN 1 ELSE 0 END) as medios,
               SUM(CASE WHEN prioridad = 'baja' THEN 1 ELSE 0 END) as bajos
               FROM tickets";
-
+    
     $result = $conn->query($query);
     $stats = $result->fetch_assoc();
-
+    
     $query_usuarios = "SELECT COUNT(*) as total_usuarios FROM usuarios WHERE estado = 1";
     $result_usuarios = $conn->query($query_usuarios);
     $usuarios = $result_usuarios->fetch_assoc();
-
+    
     $stats['total_usuarios'] = $usuarios['total_usuarios'];
-
+    
     echo json_encode(['success' => true, 'stats' => $stats]);
     exit;
 }
 
-function obtener_dashboard()
-{
+function obtener_dashboard() {
     global $conn;
-
+    
     // Estadísticas generales
     $stats = [];
-
+    
     $result = $conn->query("SELECT COUNT(*) as total FROM tickets");
     $stats['total_tickets'] = $result->fetch_assoc()['total'];
-
+    
     $result = $conn->query("SELECT COUNT(*) as total FROM usuarios WHERE estado = 1");
     $stats['total_usuarios'] = $result->fetch_assoc()['total'];
-
+    
     $result = $conn->query("SELECT COUNT(*) as total FROM tickets WHERE estado = 'Abierto'");
     $stats['tickets_abiertos'] = $result->fetch_assoc()['total'];
-
+    
     $result = $conn->query("SELECT COUNT(*) as total FROM tickets WHERE estado = 'En Proceso'");
     $stats['tickets_proceso'] = $result->fetch_assoc()['total'];
-
+    
     // Tickets por categoría
     $result = $conn->query("SELECT categoria, COUNT(*) as total FROM tickets GROUP BY categoria ORDER BY total DESC LIMIT 5");
     $stats['por_categoria'] = [];
     while ($row = $result->fetch_assoc()) {
         $stats['por_categoria'][] = $row;
     }
-
+    
     // Tickets por prioridad
     $result = $conn->query("SELECT prioridad, COUNT(*) as total FROM tickets GROUP BY prioridad");
     $stats['por_prioridad'] = [];
     while ($row = $result->fetch_assoc()) {
         $stats['por_prioridad'][] = $row;
     }
-
+    
     echo json_encode(['success' => true, 'dashboard' => $stats]);
     exit;
 }
 
-function listar_usuarios_admin()
-{
+function listar_usuarios_admin() {
     global $conn;
-
+    
     // QUERY CORREGIDA - SIN columna 'efectivo'
     $query = "SELECT 
               u.id,
@@ -158,26 +154,25 @@ function listar_usuarios_admin()
               END as rol_nombre
               FROM usuarios u
               ORDER BY u.fecha_creacion DESC";
-
+    
     $result = $conn->query($query);
-
+    
     if (!$result) {
         throw new Exception('Error en la consulta: ' . $conn->error);
     }
-
+    
     $usuarios = [];
     while ($row = $result->fetch_assoc()) {
         $usuarios[] = $row;
     }
-
+    
     echo json_encode(['success' => true, 'usuarios' => $usuarios]);
     exit;
 }
 
-function crear_usuario_admin()
-{
+function crear_usuario_admin() {
     global $conn;
-
+    
     $usuario = trim($_POST['usuario'] ?? '');
     $password = trim($_POST['password'] ?? '');
     $primer_nombre = trim($_POST['primer_nombre'] ?? '');
@@ -188,11 +183,11 @@ function crear_usuario_admin()
     $telefono = trim($_POST['telefono'] ?? '');
     $area = trim($_POST['area'] ?? '');
     $id_rol_admin = intval($_POST['id_rol_admin'] ?? 4);
-
+    
     if (empty($usuario) || empty($password) || empty($primer_nombre) || empty($primer_apellido) || empty($email)) {
         throw new Exception('Campos obligatorios faltantes');
     }
-
+    
     // Verificar si usuario ya existe
     $stmt = $conn->prepare("SELECT id FROM usuarios WHERE usuario = ? OR email = ?");
     $stmt->bind_param("ss", $usuario, $email);
@@ -200,28 +195,19 @@ function crear_usuario_admin()
     if ($stmt->get_result()->num_rows > 0) {
         throw new Exception('El usuario o email ya existe');
     }
-
+    
     $password_hash = password_hash($password, PASSWORD_DEFAULT);
-
+    
     $stmt = $conn->prepare("INSERT INTO usuarios 
                            (usuario, password, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, 
                             email, telefono, area, id_rol_admin, estado, fecha_creacion) 
                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())");
-
-    $stmt->bind_param(
-        "sssssssssi",
-        $usuario,
-        $password_hash,
-        $primer_nombre,
-        $segundo_nombre,
-        $primer_apellido,
-        $segundo_apellido,
-        $email,
-        $telefono,
-        $area,
-        $id_rol_admin
+    
+    $stmt->bind_param("sssssssssi", 
+        $usuario, $password_hash, $primer_nombre, $segundo_nombre, $primer_apellido, 
+        $segundo_apellido, $email, $telefono, $area, $id_rol_admin
     );
-
+    
     if ($stmt->execute()) {
         echo json_encode(['success' => true, 'message' => 'Usuario creado exitosamente']);
     } else {
@@ -230,10 +216,9 @@ function crear_usuario_admin()
     exit;
 }
 
-function actualizar_usuario_admin()
-{
+function actualizar_usuario_admin() {
     global $conn;
-
+    
     $id = intval($_POST['id'] ?? 0);
     $usuario = trim($_POST['usuario'] ?? '');
     $primer_nombre = trim($_POST['primer_nombre'] ?? '');
@@ -246,11 +231,11 @@ function actualizar_usuario_admin()
     $id_rol_admin = intval($_POST['id_rol_admin'] ?? 4);
     $estado = intval($_POST['estado'] ?? 1);
     $password = trim($_POST['password'] ?? '');
-
+    
     if (!$id || empty($usuario) || empty($primer_nombre) || empty($primer_apellido) || empty($email)) {
         throw new Exception('Campos obligatorios faltantes');
     }
-
+    
     // Verificar si usuario/email ya existe en otro registro
     $stmt = $conn->prepare("SELECT id FROM usuarios WHERE (usuario = ? OR email = ?) AND id != ?");
     $stmt->bind_param("ssi", $usuario, $email, $id);
@@ -258,7 +243,7 @@ function actualizar_usuario_admin()
     if ($stmt->get_result()->num_rows > 0) {
         throw new Exception('El usuario o email ya existe en otro registro');
     }
-
+    
     if (!empty($password)) {
         $password_hash = password_hash($password, PASSWORD_DEFAULT);
         $stmt = $conn->prepare("UPDATE usuarios SET 
@@ -266,20 +251,9 @@ function actualizar_usuario_admin()
                                primer_apellido = ?, segundo_apellido = ?, email = ?, telefono = ?, 
                                area = ?, id_rol_admin = ?, estado = ?
                                WHERE id = ?");
-        $stmt->bind_param(
-            "sssssssssiis",
-            $usuario,
-            $password_hash,
-            $primer_nombre,
-            $segundo_nombre,
-            $primer_apellido,
-            $segundo_apellido,
-            $email,
-            $telefono,
-            $area,
-            $id_rol_admin,
-            $estado,
-            $id
+        $stmt->bind_param("sssssssssiis", 
+            $usuario, $password_hash, $primer_nombre, $segundo_nombre, $primer_apellido,
+            $segundo_apellido, $email, $telefono, $area, $id_rol_admin, $estado, $id
         );
     } else {
         $stmt = $conn->prepare("UPDATE usuarios SET 
@@ -287,22 +261,12 @@ function actualizar_usuario_admin()
                                primer_apellido = ?, segundo_apellido = ?, email = ?, telefono = ?, 
                                area = ?, id_rol_admin = ?, estado = ?
                                WHERE id = ?");
-        $stmt->bind_param(
-            "ssssssssiis",
-            $usuario,
-            $primer_nombre,
-            $segundo_nombre,
-            $primer_apellido,
-            $segundo_apellido,
-            $email,
-            $telefono,
-            $area,
-            $id_rol_admin,
-            $estado,
-            $id
+        $stmt->bind_param("ssssssssiis", 
+            $usuario, $primer_nombre, $segundo_nombre, $primer_apellido,
+            $segundo_apellido, $email, $telefono, $area, $id_rol_admin, $estado, $id
         );
     }
-
+    
     if ($stmt->execute()) {
         echo json_encode(['success' => true, 'message' => 'Usuario actualizado exitosamente']);
     } else {
@@ -311,20 +275,19 @@ function actualizar_usuario_admin()
     exit;
 }
 
-function eliminar_usuario_admin()
-{
+function eliminar_usuario_admin() {
     global $conn;
-
+    
     $id = intval($_POST['id'] ?? 0);
-
+    
     if (!$id) {
         throw new Exception('ID de usuario no válido');
     }
-
+    
     // No eliminar, solo desactivar
     $stmt = $conn->prepare("UPDATE usuarios SET estado = 0 WHERE id = ?");
     $stmt->bind_param("i", $id);
-
+    
     if ($stmt->execute()) {
         echo json_encode(['success' => true, 'message' => 'Usuario desactivado exitosamente']);
     } else {
@@ -333,13 +296,12 @@ function eliminar_usuario_admin()
     exit;
 }
 
-function obtener_reportes()
-{
+function obtener_reportes() {
     global $conn;
-
+    
     $fecha_desde = $_GET['fecha_desde'] ?? date('Y-m-01');
     $fecha_hasta = $_GET['fecha_hasta'] ?? date('Y-m-d');
-
+    
     $query = "SELECT 
               DATE(fecha_creacion) as fecha,
               COUNT(*) as total,
@@ -349,17 +311,18 @@ function obtener_reportes()
               WHERE DATE(fecha_creacion) BETWEEN ? AND ?
               GROUP BY DATE(fecha_creacion)
               ORDER BY fecha DESC";
-
+    
     $stmt = $conn->prepare($query);
     $stmt->bind_param("ss", $fecha_desde, $fecha_hasta);
     $stmt->execute();
     $result = $stmt->get_result();
-
+    
     $reportes = [];
     while ($row = $result->fetch_assoc()) {
         $reportes[] = $row;
     }
-
+    
     echo json_encode(['success' => true, 'reportes' => $reportes]);
     exit;
 }
+?>

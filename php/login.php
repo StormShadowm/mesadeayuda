@@ -68,4 +68,3 @@ if ($user['id_rol_admin'] <= 3) {
     header('Location: ../dashboard_user.html');
 }
 exit;
-?>
