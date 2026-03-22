@@ -13,7 +13,7 @@ $password = $_POST['password'] ?? '';
 $ip = $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
 
 // Buscar usuario
-$stmt = $conn->prepare("SELECT id, usuario, password, id_rol_admin, estado, 
+$stmt = $conn->prepare("SELECT id, usuario, password, id_rol_admin, id_area, estado, 
                         CONCAT(primer_nombre, ' ', primer_apellido) as nombre_completo 
                         FROM usuarios WHERE usuario = ? LIMIT 1");
 $stmt->bind_param("s", $username);
@@ -52,6 +52,7 @@ $_SESSION['usuario'] = $user['usuario'];
 $_SESSION['nombre_completo'] = $user['nombre_completo'];
 $_SESSION['id_rol_admin'] = $user['id_rol_admin'];
 $_SESSION['last_activity'] = time();
+$_SESSION['id_area'] = $user['id_area'];
 
 // Actualizar último acceso
 $update = $conn->prepare("UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = ?");

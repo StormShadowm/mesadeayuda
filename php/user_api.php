@@ -18,7 +18,7 @@ if ($action === 'me') {
     }
 
     $id = $_SESSION['user_id'];
-    $stmt = $conn->prepare("SELECT id, usuario, primer_nombre, primer_apellido, email, id_rol_admin FROM usuarios WHERE id = ?");
+    $stmt = $conn->prepare("SELECT id, usuario, primer_nombre, primer_apellido, email, id_rol_admin, id_area FROM usuarios WHERE id = ?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $user = $stmt->get_result()->fetch_assoc();

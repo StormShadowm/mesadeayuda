@@ -9,6 +9,62 @@ let currentPage = 1;
 let ticketsPerPage = 20;
 let sortColumnUsers = "id";
 let sortDirectionUsers = "ASC";
+let userPermissions = {
+  rol: 4,
+  area: null,
+  canEditMessages: false,
+  canDeleteFiles: false,
+  canChangeArea: false,
+  canReopenTickets: false,
+};
+async function loadUserPermissions() {
+  try {
+    const response = await fetch("php/user_api.php?action=me");
+    const data = await response.json();
+
+    if (data.success) {
+      const user = data.user;
+      userPermissions.rol = parseInt(user.id_rol_admin) || 4;
+      userPermissions.area = user.id_area || null;
+      userPermissions.canEditMessages = userPermissions.rol === 1;
+      userPermissions.canDeleteFiles = userPermissions.rol === 1;
+      userPermissions.canChangeArea = userPermissions.rol <= 2;
+      userPermissions.canReopenTickets = userPermissions.rol <= 2;
+
+      sessionStorage.setItem("id_rol_admin", userPermissions.rol);
+      sessionStorage.setItem("user_id", user.id);
+
+      console.log("✅ Permisos cargados:", userPermissions);
+    }
+  } catch (error) {
+    console.error("Error al cargar permisos:", error);
+  }
+}
+
+function canCloseTicket(ticket) {
+  const rol = userPermissions.rol;
+  const userId = parseInt(sessionStorage.getItem("user_id"));
+  if (rol === 1 || rol === 2) return true;
+  if (rol === 3) return ticket.id_asignado === userId;
+  return false;
+}
+
+function canAssignTicket(ticket) {
+  const rol = userPermissions.rol;
+  const userId = parseInt(sessionStorage.getItem("user_id"));
+  if (rol === 1 || rol === 2) return true;
+  if (rol === 3) return ticket.id_asignado === userId;
+  return false;
+}
+
+function canSendMessages(ticket) {
+  const rol = userPermissions.rol;
+  const userId = parseInt(sessionStorage.getItem("user_id"));
+  if (rol === 1 || rol === 2) return true;
+  if (rol === 3) return ticket.id_asignado === userId;
+  if (rol === 4) return ticket.id_usuario === userId;
+  return false;
+}
 
 window.sortColumnUsers = "id";
 window.sortDirectionUsers = "ASC";
@@ -91,6 +147,7 @@ window.limpiarFiltrosUsuarios = function () {
 
 document.addEventListener("DOMContentLoaded", () => {
   loadUserProfile();
+  loadUserPermissions();
   showView("tickets", null);
   startAutoUpdate();
 });
@@ -164,6 +221,10 @@ function showView(view, event = null) {
     renderCreateTicketForm();
   } else if (view === "users") {
     loadUsers();
+  } else if (view === "inventario") {
+    // ✅ AGREGAR ESTE BLOQUE
+    renderInventarioView();
+    loadInventario();
   } else if (view === "stats") {
     loadStats();
   }
@@ -590,9 +651,17 @@ function renderTicketRow(ticket) {
       <td><span class="badge ${estadoClass}">${ticket.estado}</span></td>
       <td><span class="badge ${prioridadClass}">${ticket.prioridad.toUpperCase()}</span></td>
       <td><small>${ticket.categoria || "-"}</small></td>
-      <td class="text-center"><small>${ticket.tiene_adjunto || "No"}</small></td>
-      <td class="text-center"><span class="badge bg-secondary">${ticket.respuestas || 0}</span></td>
-      <td class="ticket-tiempo"><small>⏱️ ${tiempoTexto}</small></td>
+      <<td class="text-center"> 
+      ${ticket.archivo_adjunto ? '<i class="bi bi-paperclip text-success fs-5"></i>' : '<span class="text-muted">-</span>'}
+      </td>
+      <td class="text-center">
+      <span class="badge ${(ticket.total_mensajes || 0) > 0 ? "bg-primary" : "bg-secondary"}">
+      ${ticket.total_mensajes || 0}
+  </span>
+</td>
+<td class="text-center ${getColorTiempo(ticket.minutos_abierto || 0, ticket.total_mensajes || 0)}">
+  ⏱️ ${formatTiempo(ticket.minutos_abierto || 0)}
+</td>
       <td><small>${formatDate(ticket.fecha_creacion)}</small></td>
       <td>
         <button class="btn btn-sm btn-primary" onclick="viewTicketDetail(${ticket.id})">👁️ Ver</button>
@@ -751,20 +820,22 @@ async function viewTicketDetail(ticketId) {
 
 async function showTicketModal(ticket) {
   const modalContent = document.getElementById("ticketDetailContent");
-  // AGREGAR estas líneas:
-  const usuarioRol = parseInt(sessionStorage.getItem("id_rol_admin")) || 4;
+  const usuarioRol = userPermissions.rol;
   const estasCerrado = ticket.estado === "Cerrado";
   const puedeAbrirTicketCerrado = usuarioRol <= 2;
   const selectEstadoDisabled = estasCerrado && !puedeAbrirTicketCerrado;
+
+  const puedeAsignar = canAssignTicket(ticket);
+  const puedeCerrar = canCloseTicket(ticket);
+  const puedeEnviar = canSendMessages(ticket);
+
   const adjuntoHtml = ticket.archivo_adjunto
     ? `
-        <div class="alert alert-info">
-            📎 <strong>Archivo adjunto:</strong> 
-            <a href="php/download_file.php?file=${ticket.archivo_adjunto}" class="btn btn-sm btn-primary ms-2">
-                Descargar
-            </a>
-        </div>
-    `
+    <div class="alert alert-info">
+      📎 <strong>Archivo adjunto:</strong> 
+      <a href="php/download_file.php?file=${ticket.archivo_adjunto}" class="btn btn-sm btn-primary ms-2">Descargar</a>
+    </div>
+  `
     : "";
 
   const responseAdmins = await fetch(
@@ -780,6 +851,35 @@ async function showTicketModal(ticket) {
     });
   }
 
+  let areasSelect = "";
+  if (userPermissions.canChangeArea) {
+    const responseAreas = await fetch("php/tickets_api.php?action=get_areas");
+    const dataAreas = await responseAreas.json();
+
+    if (dataAreas.success) {
+      let areasOptions = '<option value="">-- Sin área --</option>';
+      dataAreas.areas.forEach((area) => {
+        const selected = ticket.id_area == area.id ? "selected" : "";
+        areasOptions += `<option value="${area.id}" ${selected}>${area.nombre}</option>`;
+      });
+
+      areasSelect = `
+        <div class="col-md-6 mb-3">
+          <label class="form-label"><strong>Área:</strong></label>
+          <select class="form-select form-select-sm" onchange="cambiarAreaTicket(${ticket.id}, this.value)">
+            ${areasOptions}
+          </select>
+        </div>
+      `;
+    }
+  } else if (ticket.area_nombre) {
+    areasSelect = `
+      <div class="col-md-6 mb-3">
+        <strong>Área:</strong> ${ticket.area_nombre}
+      </div>
+    `;
+  }
+
   const minutos = ticket.minutos_abierto || 0;
   const tiempoTexto =
     minutos < 60
@@ -787,88 +887,114 @@ async function showTicketModal(ticket) {
       : `${Math.floor(minutos / 60)} horas ${Math.floor(minutos % 60)} minutos`;
 
   modalContent.innerHTML = `
-        <div class="mb-3">
-            <h5>#${ticket.id} - ${escapeHtml(ticket.titulo)}</h5>
-            <span class="badge bg-${ticket.estado === "Abierto" ? "primary" : ticket.estado === "Resuelto" ? "success" : "warning"}">
-                ${ticket.estado}
-            </span>
-            <span class="badge bg-secondary ms-2">${ticket.prioridad.toUpperCase()}</span>
-            <small class="text-muted ms-2">⏱️ Abierto hace: ${tiempoTexto}</small>
+    <div class="mb-3">
+      <h5>#${ticket.id} - ${escapeHtml(ticket.titulo)}</h5>
+      <span class="badge bg-${ticket.estado === "Abierto" ? "primary" : ticket.estado === "Resuelto" ? "success" : "warning"}">
+        ${ticket.estado}
+      </span>
+      <span class="badge bg-secondary ms-2">${ticket.prioridad.toUpperCase()}</span>
+      <small class="text-muted ms-2">⏱️ Abierto hace: ${tiempoTexto}</small>
+    </div>
+    
+    <div class="mb-3">
+      <strong>Descripción:</strong>
+      <p>${escapeHtml(ticket.descripcion)}</p>
+    </div>
+    
+    ${adjuntoHtml}
+    
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <strong>Categoría:</strong> ${ticket.categoria || "-"}<br>
+        <strong>Subcategoría:</strong> ${ticket.subcategoria || "-"}
+      </div>
+      <div class="col-md-6">
+        <strong>Creado por:</strong> ${escapeHtml(ticket.nombre_usuario || "Desconocido")}<br>
+        <strong>Email:</strong> ${escapeHtml(ticket.email_usuario || "-")}
+      </div>
+    </div>
+    
+    <div class="mb-3">
+      <strong>Fecha:</strong> ${formatDate(ticket.fecha_creacion)}
+    </div>
+    
+    <hr>
+    
+    <div class="row mb-3">
+      ${areasSelect}
+      
+      <div class="col-md-6">
+        <label class="form-label"><strong>Asignar a:</strong></label>
+        <select class="form-select form-select-sm" 
+          onchange="asignarTicket(${ticket.id}, this.value)"
+          ${!puedeAsignar ? "disabled" : ""}
+          ${selectEstadoDisabled ? "disabled" : ""}>
+          ${adminsOptions}             
+        </select>             
+      </div>
+      
+      <div class="col-md-3">
+        <label class="form-label"><strong>Cambiar Estado:</strong></label>
+        <select class="form-select form-select-sm" 
+          onchange="updateTicketStatus(${ticket.id}, this.value)"
+          ${!puedeCerrar && ticket.estado === "Cerrado" ? "disabled" : ""}>
+          <option value="">--</option>
+          <option value="Abierto" ${ticket.estado === "Abierto" ? "selected" : ""}>Abierto</option>
+          <option value="En Proceso" ${ticket.estado === "En Proceso" ? "selected" : ""}>En Proceso</option>
+          <option value="Resuelto" ${ticket.estado === "Resuelto" ? "selected" : ""}>Resuelto</option>
+          <option value="Cerrado" ${ticket.estado === "Cerrado" ? "selected" : ""}>Cerrado</option>
+        </select>
+      </div>
+      
+      <div class="col-md-3">
+        <label class="form-label"><strong>Prioridad:</strong></label>
+        <select class="form-select form-select-sm" 
+          onchange="updateTicketPriority(${ticket.id}, this.value)"
+          ${!puedeAsignar ? "disabled" : ""}>
+          <option value="">--</option>
+          <option value="baja" ${ticket.prioridad === "baja" ? "selected" : ""}>Baja</option>
+          <option value="media" ${ticket.prioridad === "media" ? "selected" : ""}>Media</option>
+          <option value="alta" ${ticket.prioridad === "alta" ? "selected" : ""}>Alta</option>
+          <option value="critica" ${ticket.prioridad === "critica" ? "selected" : ""}>Crítica</option>
+        </select>
+      </div>
+    </div>
+    
+    <hr>
+    
+    ${
+      puedeEnviar
+        ? `
+    <div class="mb-3">
+      <label class="form-label"><strong>Adjuntar Archivo:</strong></label>
+      <input type="file" id="ticketFile" class="form-control form-control-sm">
+      <button class="btn btn-secondary btn-sm mt-2" onclick="uploadTicketFile(${ticket.id})">📤 Subir</button>
+    </div>
+    `
+        : ""
+    }
+    
+    <hr>
+    
+    <div class="mb-3">
+      <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#historialTicket">
+        📋 Ver Historial de Cambios
+      </button>
+      <div class="collapse mt-2" id="historialTicket">
+        <div id="historialContent" class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+          <div class="text-center"><div class="spinner-border spinner-border-sm"></div></div>
         </div>
-        
-        <div class="mb-3">
-            <strong>Descripción:</strong>
-            <p>${escapeHtml(ticket.descripcion)}</p>
-        </div>
-        
-        ${adjuntoHtml}
-        
-        <div class="row mb-3">
-            <div class="col-md-6">
-                <strong>Categoría:</strong> ${ticket.categoria || "-"}<br>
-                <strong>Subcategoría:</strong> ${ticket.subcategoria || "-"}
-            </div>
-            <div class="col-md-6">
-                <strong>Creado por:</strong> ${escapeHtml(ticket.nombre_usuario || "Desconocido")}<br>
-                <strong>Email:</strong> ${escapeHtml(ticket.email_usuario || "-")}
-            </div>
-        </div>
-        
-        <div class="mb-3">
-            <strong>Fecha:</strong> ${formatDate(ticket.fecha_creacion)}
-        </div>
-        
-        <hr>
-        
-        <div class="row mb-3">
-<div class="col-md-6">
-    <label class="form-label"><strong>Asignar a:</strong></label>
-    <select class="form-select form-select-sm" 
-        onchange="asignarTicket(${ticket.id}, this.value)"
-        ${selectEstadoDisabled ? "disabled" : ""}>
-        ${adminsOptions}             
-    </select>             
-</div>
-            
-            <div class="col-md-3">
-                <label class="form-label"><strong>Cambiar Estado:</strong></label>
-                <select class="form-select form-select-sm" onchange="updateTicketStatus(${ticket.id}, this.value)">
-                    <option value="">--</option>
-                    <option value="Abierto" ${ticket.estado === "Abierto" ? "selected" : ""}>Abierto</option>
-                    <option value="En Proceso" ${ticket.estado === "En Proceso" ? "selected" : ""}>En Proceso</option>
-                    <option value="Resuelto" ${ticket.estado === "Resuelto" ? "selected" : ""}>Resuelto</option>
-                    <option value="Cerrado" ${ticket.estado === "Cerrado" ? "selected" : ""}>Cerrado</option>
-                </select>
-            </div>
-            
-            <div class="col-md-3">
-                <label class="form-label"><strong>Prioridad:</strong></label>
-                <select class="form-select form-select-sm" onchange="updateTicketPriority(${ticket.id}, this.value)">
-                    <option value="">--</option>
-                    <option value="baja" ${ticket.prioridad === "baja" ? "selected" : ""}>Baja</option>
-                    <option value="media" ${ticket.prioridad === "media" ? "selected" : ""}>Media</option>
-                    <option value="alta" ${ticket.prioridad === "alta" ? "selected" : ""}>Alta</option>
-                    <option value="critica" ${ticket.prioridad === "critica" ? "selected" : ""}>Crítica</option>
-                </select>
-            </div>
-        </div>
-        
-        <hr>
-        
-        <div class="mb-3">
-            <label class="form-label"><strong>Adjuntar Archivo:</strong></label>
-            <input type="file" id="ticketFile" class="form-control form-control-sm">
-            <button class="btn btn-secondary btn-sm mt-2" onclick="uploadTicketFile(${ticket.id})">📤 Subir</button>
-        </div>
-        
-        <hr>
-        
-        <div id="ticketCommentsSection">
-            <div class="text-center">
-                <div class="spinner-border spinner-border-sm"></div>
-            </div>
-        </div>
-    `;
+      </div>
+    </div>
+    
+    <hr>
+    
+    <div id="ticketCommentsSection">
+      <div class="text-center">
+        <div class="spinner-border spinner-border-sm"></div>
+      </div>
+    </div>
+  `;
 
   const modal = new bootstrap.Modal(
     document.getElementById("ticketDetailModal"),
@@ -876,15 +1002,22 @@ async function showTicketModal(ticket) {
   modal.show();
 
   loadTicketComments(ticket.id);
-}
 
+  document.getElementById("historialTicket").addEventListener(
+    "show.bs.collapse",
+    function () {
+      loadTicketHistorial(ticket.id);
+    },
+    { once: true },
+  );
+}
 async function asignarTicket(ticketId, usuarioId) {
   if (!usuarioId) return;
 
   const formData = new FormData();
   formData.append("action", "assign");
   formData.append("ticket_id", ticketId);
-  formData.append("id_usuario_asignado", usuarioId); // ✅ CAMBIAR AQUÍ
+  formData.append("id_usuario_asignado", usuarioId);
 
   try {
     const response = await fetch("php/tickets_api.php", {
@@ -1015,42 +1148,93 @@ async function loadTicketComments(ticketId) {
     const data = await response.json();
 
     const section = document.getElementById("ticketCommentsSection");
+    const comments = data.comments || data.comentarios || [];
 
-    if (data.success && data.comentarios.length > 0) {
-      let html = "<h6>Comentarios:</h6>";
-      data.comentarios.forEach((c) => {
-        const adj = c.archivo_adjunto
-          ? `<br><a href="php/download_file.php?file=${c.archivo_adjunto}" class="btn btn-sm btn-outline-primary mt-1">📎 Descargar</a>`
+    if (data.success && comments.length > 0) {
+      let html = '<h6>Comentarios:</h6><div class="list-group">';
+
+      comments.forEach((comment) => {
+        const editado =
+          comment.editado == 1
+            ? '<small class="text-muted">(editado)</small>'
+            : "";
+        const canEdit = userPermissions.canEditMessages;
+
+        const editButton = canEdit
+          ? `
+    <button class="btn btn-sm btn-outline-secondary" 
+            onclick="toggleEditMessage(${comment.id})" 
+            id="editBtn_${comment.id}"
+            title="Editar mensaje">
+      <i class="bi bi-pencil"></i> Editar
+    </button>
+  `
           : "";
 
         html += `
-                    <div class="border-bottom pb-2 mb-2">
-                        <small class="text-muted">${escapeHtml(c.nombre_usuario)} - ${formatDate(c.fecha_envio)}</small>
-                        <p class="mb-0">${escapeHtml(c.mensaje)}${adj}</p>
-                    </div>
-                `;
+    <div class="list-group-item">
+      <div class="d-flex justify-content-between align-items-start">
+        <div class="flex-grow-1">
+          <strong>${escapeHtml(comment.usuario)}</strong>
+          <small class="text-muted ms-2">${formatDate(comment.fecha_envio)}</small>
+          ${editado}
+          <div class="mt-1" id="messageText_${comment.id}">${escapeHtml(comment.mensaje)}</div>
+          <textarea class="form-control mt-1 d-none" 
+                    id="messageEdit_${comment.id}" 
+                    rows="3">${escapeHtml(comment.mensaje)}</textarea>
+          <div class="mt-2 d-none" id="messageActions_${comment.id}">
+            <button class="btn btn-sm btn-success" onclick="saveEditedMessage(${comment.id})">
+              <i class="bi bi-check"></i> Guardar
+            </button>
+            <button class="btn btn-sm btn-secondary" onclick="cancelEditMessage(${comment.id})">
+              <i class="bi bi-x"></i> Cancelar
+            </button>
+          </div>
+        </div>
+        ${editButton}
+      </div>
+      ${
+        comment.archivo
+          ? `
+        <div class="mt-2">
+          <a href="php/download_file.php?file=${comment.archivo}" class="btn btn-sm btn-link">
+            📎 ${comment.archivo}
+          </a>
+          ${
+            canEdit
+              ? `
+    <button class="btn btn-sm btn-outline-danger" 
+            onclick="deleteAttachment(${comment.id}, ${ticketId})"
+            title="Eliminar archivo">
+      🗑️ Eliminar
+    </button>
+  `
+              : ""
+          }
+        </div>
+      `
+          : ""
+      }
+    </div>
+  `;
       });
 
-      html += `
-                <div class="mt-3">
-                    <textarea id="newComment" class="form-control mb-2" rows="3" placeholder="Comentario..."></textarea>
-                    <input type="file" id="commentFile" class="form-control mb-2">
-                    <button class="btn btn-primary btn-sm" onclick="addComment(${ticketId})">💬 Enviar</button>
-                </div>
-            `;
-
+      html += "</div>";
       section.innerHTML = html;
     } else {
-      section.innerHTML = `
-                <h6>Comentarios:</h6>
-                <p class="text-muted">Sin comentarios</p>
-                <div class="mt-3">
-                    <textarea id="newComment" class="form-control mb-2" rows="3" placeholder="Comentario..."></textarea>
-                    <input type="file" id="commentFile" class="form-control mb-2">
-                    <button class="btn btn-primary btn-sm" onclick="addComment(${ticketId})">💬 Enviar</button>
-                </div>
-            `;
+      section.innerHTML = '<p class="text-muted">Sin comentarios aún</p>';
     }
+
+    // Agregar formulario para nuevo comentario
+    section.innerHTML += `
+      <hr>
+      <h6>Agregar Comentario:</h6>
+      <textarea id="newComment" class="form-control mb-2" rows="3" placeholder="Escribe tu comentario..."></textarea>
+      <input type="file" id="commentFile" class="form-control form-control-sm mb-2">
+      <button class="btn btn-primary btn-sm" onclick="addTicketComment(${ticketId})">
+        💬 Enviar Comentario
+      </button>
+    `;
   } catch (error) {
     console.error("Error:", error);
   }
@@ -2530,5 +2714,385 @@ window.limpiarFiltrosUsuarios = function () {
   document.getElementById("filtro_estado_usuario").value = "";
   renderUsers(allUsers);
 };
+
+async function cambiarAreaTicket(ticketId, nuevaArea) {
+  if (!nuevaArea) return;
+
+  if (!confirm("¿Cambiar el área de este ticket?")) return;
+
+  const formData = new FormData();
+  formData.append("action", "change_area");
+  formData.append("ticket_id", ticketId);
+  formData.append("id_area", nuevaArea);
+
+  try {
+    const response = await fetch("php/tickets_api.php", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert("✅ Área cambiada correctamente");
+      loadTickets();
+      viewTicketDetail(ticketId);
+    } else {
+      alert("❌ Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    alert("❌ Error de conexión");
+  }
+}
+
+// CARGAR HISTORIAL DEL TICKET
+async function loadTicketHistorial(ticketId) {
+  try {
+    const response = await fetch(
+      `php/tickets_api.php?action=get_historial&ticket_id=${ticketId}`,
+    );
+    const data = await response.json();
+
+    const container = document.getElementById("historialContent");
+
+    if (data.success && data.historial.length > 0) {
+      let html = '<div class="list-group list-group-flush">';
+
+      data.historial.forEach((item) => {
+        const fecha = new Date(item.fecha).toLocaleString("es-CO");
+        const usuario = `${item.primer_nombre} ${item.primer_apellido}`;
+
+        let icono = "📝";
+        let texto = "";
+
+        switch (item.accion) {
+          case "creacion":
+            icono = "✨";
+            texto = "Ticket creado";
+            break;
+          case "cambio_estado":
+            icono = "🔄";
+            texto = `Estado: ${item.valor_anterior} → ${item.valor_nuevo}`;
+            break;
+          case "cambio_area":
+            icono = "📁";
+            texto = `Área cambiada`;
+            break;
+          case "asignacion":
+            icono = "👤";
+            texto = `Técnico asignado`;
+            break;
+          case "reapertura":
+            icono = "🔓";
+            texto = `Ticket reabierto`;
+            break;
+          case "comentario":
+            icono = "💬";
+            texto = "Comentario agregado";
+            break;
+          case "cierre":
+            icono = "🔒";
+            texto = "Ticket cerrado";
+            break;
+          case "cambio_prioridad":
+            icono = "⚡";
+            texto = `Prioridad: ${item.valor_anterior} → ${item.valor_nuevo}`;
+            break;
+          case "edicion_mensaje":
+            icono = "✏️";
+            texto = "Mensaje editado";
+            break;
+          case "eliminacion_archivo":
+            icono = "🗑️";
+            texto = `Archivo eliminado: ${item.valor_anterior}`;
+            break;
+          default:
+            texto = item.accion;
+        }
+
+        html += `
+          <div class="list-group-item list-group-item-action py-2">
+            <div class="d-flex w-100 justify-content-between align-items-start">
+              <small class="mb-0">${icono} ${texto}</small>
+              <small class="text-muted">${fecha}</small>
+            </div>
+            <small class="text-muted">Por: ${usuario}</small>
+          </div>
+        `;
+      });
+
+      html += "</div>";
+      container.innerHTML = html;
+    } else {
+      container.innerHTML =
+        '<p class="text-muted text-center mb-0">Sin historial</p>';
+    }
+  } catch (error) {
+    console.error("Error al cargar historial:", error);
+    document.getElementById("historialContent").innerHTML =
+      '<p class="text-danger">Error al cargar historial</p>';
+  }
+}
+
+// TOGGLE EDITAR MENSAJE
+function toggleEditMessage(messageId) {
+  const textDiv = document.getElementById(`messageText_${messageId}`);
+  const editArea = document.getElementById(`messageEdit_${messageId}`);
+  const actions = document.getElementById(`messageActions_${messageId}`);
+  const editBtn = document.getElementById(`editBtn_${messageId}`);
+
+  textDiv.classList.add("d-none");
+  editArea.classList.remove("d-none");
+  actions.classList.remove("d-none");
+  editBtn.classList.add("d-none");
+}
+
+// CANCELAR EDITAR MENSAJE
+function cancelEditMessage(messageId) {
+  const textDiv = document.getElementById(`messageText_${messageId}`);
+  const editArea = document.getElementById(`messageEdit_${messageId}`);
+  const actions = document.getElementById(`messageActions_${messageId}`);
+  const editBtn = document.getElementById(`editBtn_${messageId}`);
+
+  textDiv.classList.remove("d-none");
+  editArea.classList.add("d-none");
+  actions.classList.add("d-none");
+  editBtn.classList.remove("d-none");
+}
+
+// ELIMINAR ARCHIVO ADJUNTO
+async function deleteAttachment(messageId, ticketId) {
+  if (!confirm("¿Eliminar este archivo adjunto?")) return;
+
+  const formData = new FormData();
+  formData.append("action", "delete_attachment");
+  formData.append("message_id", messageId);
+  formData.append("ticket_id", ticketId);
+
+  try {
+    const response = await fetch("php/tickets_api.php", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert("✅ Archivo eliminado");
+      loadTicketComments(ticketId);
+      loadTicketHistorial(ticketId);
+    } else {
+      alert("❌ Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    alert("❌ Error de conexión");
+  }
+}
+
+// GUARDAR MENSAJE EDITADO
+async function saveEditedMessage(messageId) {
+  const editArea = document.getElementById(`messageEdit_${messageId}`);
+  const textDiv = document.getElementById(`messageText_${messageId}`);
+  const nuevoMensaje = editArea.value.trim();
+  const mensajeAnterior = textDiv.textContent.trim();
+
+  if (!nuevoMensaje) {
+    alert("El mensaje no puede estar vacío");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("action", "edit_message");
+  formData.append("message_id", messageId);
+  formData.append("mensaje", nuevoMensaje);
+  formData.append("mensaje_anterior", mensajeAnterior);
+  formData.append("ticket_id", currentTicketId);
+
+  try {
+    const response = await fetch("php/tickets_api.php", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      loadTicketComments(currentTicketId);
+      loadTicketHistorial(currentTicketId);
+    } else {
+      alert("❌ Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    alert("❌ Error de conexión");
+  }
+}
+
+/**
+ * Formatear tiempo en formato legible
+ */
+function formatTiempo(minutos) {
+  if (!minutos || minutos < 0) return "0 min";
+
+  if (minutos < 60) {
+    // Menos de 1 hora
+    return `${Math.floor(minutos)} min`;
+  } else if (minutos < 1440) {
+    // Menos de 24 horas
+    const horas = Math.floor(minutos / 60);
+    const mins = Math.floor(minutos % 60);
+    return mins > 0 ? `${horas}h ${mins}m` : `${horas}h`;
+  } else {
+    // Días
+    const dias = Math.floor(minutos / 1440);
+    const horas = Math.floor((minutos % 1440) / 60);
+    return horas > 0 ? `${dias}d ${horas}h` : `${dias}d`;
+  }
+}
+
+/**
+ * Obtener clase de color según tiempo transcurrido
+ */
+function getColorTiempo(minutos, totalMensajes) {
+  if (!minutos) return "";
+
+  const sinRespuestaAdmin = (totalMensajes || 0) === 0;
+
+  if (minutos < 60) {
+    // Menos de 1 hora - Verde
+    return "bg-success-subtle text-success fw-bold";
+  } else if (minutos < 240) {
+    // 1-4 horas - Amarillo
+    return "bg-warning-subtle text-warning fw-bold";
+  } else if (minutos < 1440) {
+    // 4-24 horas - Naranja
+    return "bg-orange-subtle text-orange fw-bold";
+  } else {
+    // Más de 24 horas
+    if (sinRespuestaAdmin) {
+      // Sin respuesta - Rojo parpadeante
+      return "bg-danger text-white fw-bold blink-danger";
+    } else {
+      // Con respuesta - Rojo normal
+      return "bg-danger-subtle text-danger fw-bold";
+    }
+  }
+}
+
+// Renderizar vista de inventario
+function renderInventarioView() {
+  const content = document.getElementById("content");
+
+  content.innerHTML = `
+    <!-- Filtros -->
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title mb-3">🔍 Filtros de Inventario</h5>
+        <div class="row g-2">
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Buscar</label>
+            <input type="text" id="filtro_busqueda" class="form-control form-control-sm" placeholder="Serial, placa, tipo...">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Tipo</label>
+            <select id="filtro_tipo" class="form-select form-select-sm">
+              <option value="">Todos</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Marca</label>
+            <select id="filtro_marca" class="form-select form-select-sm">
+              <option value="">Todas</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Estado</label>
+            <select id="filtro_estado" class="form-select form-select-sm">
+              <option value="">Todos</option>
+              <option value="activo">Activo</option>
+              <option value="en_bodega">En Bodega</option>
+              <option value="custodia">Custodia</option>
+              <option value="disposicion">Disposición</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Sede</label>
+            <select id="filtro_sede" class="form-select form-select-sm">
+              <option value="">Todas</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Área</label>
+            <select id="filtro_area" class="form-select form-select-sm">
+              <option value="">Todas</option>
+            </select>
+          </div>
+        </div>
+        <div class="row mt-2">
+          <div class="col-12">
+            <button class="btn btn-primary btn-sm" onclick="aplicarFiltrosInventario()">🔍 Filtrar</button>
+            <button class="btn btn-secondary btn-sm" onclick="limpiarFiltrosInventario()">🔄 Limpiar</button>
+            <button class="btn btn-success btn-sm" onclick="exportarInventarioExcel()">📥 Exportar Excel</button>
+            <button class="btn btn-info btn-sm" onclick="showCreateInventarioModal()" id="btnCrearInventario">➕ Nuevo Item</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabla -->
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">📦 Inventario (<span id="inventarioCount">0</span>)</h5>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover table-sm mb-0">
+            <thead class="table-light">
+              <tr>
+                <th class="text-center">ID</th>
+                <th>Tipo</th>
+                <th>Marca</th>
+                <th>Modelo</th>
+                <th>Serial</th>
+                <th>Placa</th>
+                <th class="text-center">F. Compra</th>
+                <th class="text-center">F. Asignación</th>
+                <th class="text-center">F. Devolución</th>
+                <th>Sede</th>
+                <th>Área</th>
+                <th>Usuario</th>
+                <th class="text-center">Estado</th>
+                <th class="text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="inventarioTableBody">
+              <tr>
+                <td colspan="14" class="text-center">
+                  <div class="spinner-border spinner-border-sm" role="status">
+                    <span class="visually-hidden">Cargando...</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Cargar catálogos en filtros
+  loadCatalogos();
+
+  // Ocultar botón crear si no tiene permisos
+  const rol = parseInt(sessionStorage.getItem("id_rol_admin")) || 4;
+  if (rol > 2) {
+    setTimeout(() => {
+      const btnCrear = document.getElementById("btnCrearInventario");
+      if (btnCrear) btnCrear.style.display = "none";
+    }, 100);
+  }
+}
 
 console.log("✅ admin.js cargado completamente");

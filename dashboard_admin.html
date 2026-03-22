@@ -8,6 +8,8 @@
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
       rel="stylesheet"
     />
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"
@@ -16,6 +18,7 @@
       href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    
     <link rel="stylesheet" href="css/style.css" />
 
     <style>
@@ -447,6 +450,8 @@ console.log('✅ Módulo de control de sesión cargado');
 </body>
 </html>
 
+<script src="js/inventario.js"></script>
+
   <body>
     <!-- Navbar -->
     <nav
@@ -512,6 +517,13 @@ console.log('✅ Módulo de control de sesión cargado');
                 >
                   <i class="bi bi-people"></i> Usuarios
                 </button>
+                  <button
+    class="btn btn-secondary btn-section"
+    onclick="showView('inventario', event)"
+  >
+    <i class="bi bi-box-seam"></i> Inventario
+  </button>
+
                 <button
                   class="btn btn-secondary btn-section"
                   onclick="showView('stats', event)"

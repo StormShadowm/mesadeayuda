@@ -41,10 +41,14 @@ function formatearNumeroTicket(ticket) {
 
 function getBadgeEstado(estado) {
   const badges = {
-    Abierto: '<span class="badge bg-info"><i class="bi bi-folder2-open"></i> Abierto</span>',
-    "En Proceso": '<span class="badge bg-warning"><i class="bi bi-gear"></i> En Proceso</span>',
-    Resuelto: '<span class="badge bg-success"><i class="bi bi-check-circle"></i> Resuelto</span>',
-    Cerrado: '<span class="badge bg-secondary"><i class="bi bi-lock"></i> Cerrado</span>',
+    Abierto:
+      '<span class="badge bg-info"><i class="bi bi-folder2-open"></i> Abierto</span>',
+    "En Proceso":
+      '<span class="badge bg-warning"><i class="bi bi-gear"></i> En Proceso</span>',
+    Resuelto:
+      '<span class="badge bg-success"><i class="bi bi-check-circle"></i> Resuelto</span>',
+    Cerrado:
+      '<span class="badge bg-secondary"><i class="bi bi-lock"></i> Cerrado</span>',
   };
   return badges[estado] || `<span class="badge bg-secondary">${estado}</span>`;
 }
@@ -52,23 +56,31 @@ function getBadgeEstado(estado) {
 function getBadgePrioridad(prioridad) {
   const badges = {
     baja: '<span class="badge bg-secondary"><i class="bi bi-circle"></i> Baja</span>',
-    media: '<span class="badge bg-info"><i class="bi bi-circle-fill"></i> Media</span>',
+    media:
+      '<span class="badge bg-info"><i class="bi bi-circle-fill"></i> Media</span>',
     alta: '<span class="badge bg-warning"><i class="bi bi-exclamation-circle"></i> Alta</span>',
-    critica: '<span class="badge bg-danger"><i class="bi bi-exclamation-triangle"></i> Crítica</span>',
+    critica:
+      '<span class="badge bg-danger"><i class="bi bi-exclamation-triangle"></i> Crítica</span>',
   };
-  return badges[prioridad] || `<span class="badge bg-secondary">${prioridad}</span>`;
+  return (
+    badges[prioridad] || `<span class="badge bg-secondary">${prioridad}</span>`
+  );
 }
 
 // ==================== VALIDAR ENVÍO DE MENSAJE ====================
 
 async function validarEnvioMensaje(idTicket) {
   try {
-    const response = await fetch(`php/tickets_api.php?action=get&id=${idTicket}`);
+    const response = await fetch(
+      `php/tickets_api.php?action=get&id=${idTicket}`,
+    );
     const data = await response.json();
-    
+
     if (data.success && data.ticket) {
-      if (data.ticket.estado === 'Cerrado') {
-        alert('No se pueden agregar mensajes a tickets cerrados. Por favor, reabre el ticket primero.');
+      if (data.ticket.estado === "Cerrado") {
+        alert(
+          "No se pueden agregar mensajes a tickets cerrados. Por favor, reabre el ticket primero.",
+        );
         return false;
       }
       return true;
@@ -90,8 +102,12 @@ window.getBadgePrioridad = getBadgePrioridad;
 window.validarEnvioMensaje = validarEnvioMensaje;
 
 // Funciones dummy para compatibilidad (no hacen nada)
-window.habilitarOrdenamientoTabla = function() { console.log("Ordenamiento deshabilitado"); };
-window.agregarOpcionTodosEnFiltros = function() { console.log("Filtros 'Todos' deshabilitado"); };
+window.habilitarOrdenamientoTabla = function () {
+  console.log("Ordenamiento deshabilitado");
+};
+window.agregarOpcionTodosEnFiltros = function () {
+  console.log("Filtros 'Todos' deshabilitado");
+};
 window.validarFormularioMensaje = validarEnvioMensaje;
-window.mejorarTablaUsuarios = function() {};
-window.mostrarSkeleton = function() {};
+window.mejorarTablaUsuarios = function () {};
+window.mostrarSkeleton = function () {};

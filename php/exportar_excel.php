@@ -1,4 +1,5 @@
 <?php
+
 /**
  * exportar_excel.php - Exportador de Reportes a Excel
  * Genera archivo Excel con estadísticas de tickets
@@ -125,7 +126,7 @@ header('Expires: 0');
 $output = fopen('php://output', 'w');
 
 // BOM para UTF-8
-fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
+fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF));
 
 // Encabezados (CON COLUMNAS DE REAPERTURAS)
 $headers = [
@@ -181,10 +182,9 @@ while ($row = $result->fetch_assoc()) {
         $row['total_comentarios'],
         $row['tiene_adjunto']
     ];
-    
+
     fputcsv($output, $data, ';');
 }
 
 fclose($output);
 exit;
-?>

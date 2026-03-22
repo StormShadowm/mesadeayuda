@@ -156,6 +156,9 @@ class TicketPermissions
 
         // Admin Intermedio y Técnicos ven tickets de su área
         if ($id_rol_admin == self::ADMIN_INTERMEDIO || $id_rol_admin == self::TECNICO) {
+            if ($id_area_usuario === null || $id_area_usuario === '') {
+                return "SELECT * FROM tickets WHERE 1=0 ORDER BY fecha_creacion DESC";
+            }
             return "SELECT * FROM tickets WHERE id_area = $id_area_usuario ORDER BY fecha_creacion DESC";
         }
 
@@ -165,7 +168,7 @@ class TicketPermissions
     /**
      * Registrar cambio en historial
      */
-    public static function registrarHistorial($conn, $id_ticket, $accion, $campo = null, $valor_anterior = null, $valor_nuevo = null, $id_usuario)
+    public static function registrarHistorial($conn, $id_ticket, $accion, $id_usuario, $campo = null, $valor_anterior = null, $valor_nuevo = null)
     {
         $stmt = $conn->prepare("INSERT INTO historial_tickets (id_ticket, accion, campo_modificado, valor_anterior, valor_nuevo, id_usuario) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt->bind_param("issssi", $id_ticket, $accion, $campo, $valor_anterior, $valor_nuevo, $id_usuario);

@@ -175,3 +175,96 @@ body {
 .table tbody {
     background-color: transparent;
 }
+
+/* Asegurar que los iconos de Bootstrap se vean */
+.bi::before {
+    display: inline-block;
+    font-family: "bootstrap-icons" !important;
+    font-style: normal;
+    font-weight: normal !important;
+    font-variant: normal;
+    text-transform: none;
+    line-height: 1;
+    vertical-align: -0.125em;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Icono de lápiz específico */
+.bi-pencil::before {
+    content: "\f4cb";
+}
+
+/* Icono de basura */
+.bi-trash::before {
+    content: "\f5de";
+}
+
+/* Icono de check */
+.bi-check::before {
+    content: "\f26b";
+}
+
+/* Icono de X */
+.bi-x::before {
+    content: "\f62a";
+}
+
+/* Colores de tiempo */
+.bg-success-subtle {
+    background-color: #d1f4e0 !important;
+}
+
+.text-success {
+    color: #28a745 !important;
+}
+
+.bg-warning-subtle {
+    background-color: #fff3cd !important;
+}
+
+.text-warning {
+    color: #ffc107 !important;
+}
+
+.bg-orange-subtle {
+    background-color: #ffe5cc !important;
+}
+
+.text-orange {
+    color: #ff8c00 !important;
+}
+
+.bg-danger-subtle {
+    background-color: #f8d7da !important;
+}
+
+.text-danger {
+    color: #dc3545 !important;
+}
+
+/* Efecto parpadeo para tickets urgentes */
+@keyframes blink-danger {
+
+    0%,
+    100% {
+        background-color: #dc3545;
+        opacity: 1;
+    }
+
+    50% {
+        background-color: #ff6b6b;
+        opacity: 0.7;
+    }
+}
+
+.blink-danger {
+    animation: blink-danger 2s ease-in-out infinite;
+    font-weight: bold;
+    color: white !important;
+}
+
+/* Centrar contenido */
+td.text-center {
+    text-align: center;
+    vertical-align: middle;
+}
