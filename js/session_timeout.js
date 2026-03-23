@@ -16,8 +16,6 @@ const SessionTimeout = {
 
   // Inicializar sistema de timeout
   init: function () {
-    console.log("🕐 Sistema de timeout de sesión iniciado (2 minutos)");
-
     // Crear modal de advertencia
     this.createWarningModal();
 
@@ -145,8 +143,6 @@ const SessionTimeout = {
         { passive: true },
       );
     });
-
-    console.log("✅ Listeners de actividad configurados");
   },
 
   // Resetear timer de actividad
@@ -269,7 +265,6 @@ const SessionTimeout = {
       const data = await response.json();
 
       if (data.success) {
-        console.log("✅ Sesión extendida por 2 minutos más");
         this.hideWarning();
         this.resetTimer();
 
@@ -307,7 +302,6 @@ const SessionTimeout = {
 
   // Cerrar sesión manualmente
   logout: function () {
-    console.log("🚪 Cerrando sesión manualmente");
     window.location.href = "php/logout.php";
   },
 
@@ -402,5 +396,3 @@ if (document.readyState === "loading") {
 } else {
   SessionTimeout.init();
 }
-
-console.log("✅ Módulo de control de sesión cargado");

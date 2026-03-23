@@ -3,8 +3,6 @@
  * Parche para formatear fechas y tiempos en el sistema
  */
 
-console.log("⏰ Cargando parche de tiempos...");
-
 // ==================== FORMATEAR FECHA Y HORA ====================
 
 function formatearFechaHora(fecha) {
@@ -135,8 +133,6 @@ function iniciarActualizacionAutomatica() {
 document.addEventListener("DOMContentLoaded", () => {
   iniciarActualizacionAutomatica();
 });
-
-console.log("✅ Parche de tiempos cargado");
 
 // Exportar funciones globalmente
 window.formatearFechaHora = formatearFechaHora;

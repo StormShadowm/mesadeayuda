@@ -33,8 +33,6 @@ async function loadUserPermissions() {
 
       sessionStorage.setItem("id_rol_admin", userPermissions.rol);
       sessionStorage.setItem("user_id", user.id);
-
-      console.log("✅ Permisos cargados:", userPermissions);
     }
   } catch (error) {
     console.error("Error al cargar permisos:", error);
@@ -170,7 +168,6 @@ async function loadUserProfile() {
 
       // IMPORTANTE: Guardar el rol en sessionStorage
       sessionStorage.setItem("id_rol_admin", rolId);
-      console.log("✅ Rol de usuario guardado:", rolId);
     }
   } catch (error) {
     console.error("Error:", error);
@@ -672,7 +669,6 @@ function renderTicketRow(ticket) {
 
 // Recargar tickets
 renderTickets(allTickets);
-console.log("✅ Tickets actualizados con formato de reaperturas");
 
 function previousPage() {
   if (currentPage > 1) {
@@ -1298,7 +1294,6 @@ async function addComment(ticketId) {
 // ==================== USUARIOS ====================
 
 async function loadUsers() {
-  console.log("🔄 Cargando usuarios...");
   const content = document.getElementById("content");
 
   content.innerHTML = `
@@ -1316,8 +1311,6 @@ async function loadUsers() {
     }
 
     const data = await response.json();
-
-    console.log("✅ Usuarios recibidos:", data.usuarios?.length || 0);
 
     if (data.success && data.usuarios) {
       allUsers = data.usuarios;
@@ -1518,7 +1511,6 @@ function renderUsers(users) {
   `;
 
   content.innerHTML = html;
-  console.log("✅ Tabla de usuarios renderizada correctamente");
 }
 
 async function editUser(userId) {
@@ -1531,8 +1523,6 @@ async function editUser(userId) {
 
 async function showEditUserModal(userId) {
   try {
-    console.log("📝 Abriendo modal de edición para usuario:", userId);
-
     // Obtener datos del usuario
     const userResponse = await fetch(
       `php/user_api.php?action=get&id=${userId}`,
@@ -1545,7 +1535,6 @@ async function showEditUserModal(userId) {
     }
 
     const user = userData.user;
-    console.log("✅ Usuario cargado:", user);
 
     // Obtener áreas disponibles (con manejo de errores)
     let areas = [];
@@ -1554,7 +1543,6 @@ async function showEditUserModal(userId) {
       const areasData = await areasResponse.json();
       if (areasData.success && areasData.areas) {
         areas = areasData.areas;
-        console.log("✅ Áreas cargadas:", areas.length);
       } else {
         console.warn("⚠️ No se pudieron cargar áreas");
       }
@@ -1570,7 +1558,6 @@ async function showEditUserModal(userId) {
       const rolesData = await rolesResponse.json();
       if (rolesData.success && rolesData.roles) {
         roles = rolesData.roles;
-        console.log("✅ Roles cargados:", roles.length);
       } else {
         console.warn("⚠️ No se pudieron cargar roles");
         // Roles por defecto si falla
@@ -1742,8 +1729,6 @@ async function showEditUserModal(userId) {
         mostrarHistorialAccesos(userId, "historialAccesosContainer");
       }
     }, 500);
-
-    console.log("✅ Modal mostrado correctamente");
   } catch (error) {
     console.error("❌ Error en showEditUserModal:", error);
     alert("Error al cargar el formulario de edición: " + error.message);
@@ -1752,8 +1737,6 @@ async function showEditUserModal(userId) {
 
 async function showCreateUserModal() {
   try {
-    console.log("📝 Abriendo modal de creación de usuario");
-
     // Obtener áreas disponibles
     let areas = [];
     try {
@@ -1897,8 +1880,6 @@ async function showCreateUserModal() {
       document.getElementById("createUserModal"),
     );
     modal.show();
-
-    console.log("✅ Modal de creación mostrado correctamente");
   } catch (error) {
     console.error("❌ Error en showCreateUserModal:", error);
     alert("Error al cargar el formulario de creación: " + error.message);
@@ -1909,8 +1890,6 @@ async function submitCreateUserForm() {
   const form = document.getElementById("createUserForm");
   const formData = new FormData(form);
   formData.append("action", "create");
-
-  console.log("📤 Creando usuario...");
 
   try {
     const response = await fetch("php/user_api.php", {
@@ -2472,7 +2451,6 @@ function submitEditUserForm() {
   const formData = new FormData(form);
   formData.append("action", "update");
 
-  console.log("📤 Datos a enviar:");
   for (let [key, value] of formData.entries()) {
     console.log(`  ${key}: ${value}`);
   }
@@ -2483,8 +2461,6 @@ function submitEditUserForm() {
   })
     .then((response) => response.json())
     .then((data) => {
-      console.log("📥 Respuesta:", data);
-
       if (data.success) {
         alert("✅ Usuario actualizado correctamente");
         bootstrap.Modal.getInstance(
@@ -3051,7 +3027,6 @@ function renderInventarioView() {
           <table class="table table-hover table-sm mb-0">
             <thead class="table-light">
               <tr>
-                <th class="text-center">ID</th>
                 <th>Tipo</th>
                 <th>Marca</th>
                 <th>Modelo</th>
@@ -3082,8 +3057,9 @@ function renderInventarioView() {
     </div>
   `;
 
-  // Cargar catálogos en filtros
-  loadCatalogos();
+  setTimeout(() => {
+    loadCatalogos();
+  }, 100);
 
   // Ocultar botón crear si no tiene permisos
   const rol = parseInt(sessionStorage.getItem("id_rol_admin")) || 4;
@@ -3094,5 +3070,3 @@ function renderInventarioView() {
     }, 100);
   }
 }
-
-console.log("✅ admin.js cargado completamente");

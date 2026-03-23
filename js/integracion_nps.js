@@ -3,8 +3,6 @@
  * Archivo principal de integración de todos los módulos NPS
  */
 
-console.log("🚀 Iniciando integración del sistema NPS...");
-
 // ==================== CONFIGURACIÓN GLOBAL ====================
 
 const NPS_CONFIG = {
@@ -25,8 +23,6 @@ const NPS_CONFIG = {
 // ==================== INICIALIZACIÓN ====================
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("📋 Inicializando sistema NPS...");
-
   inicializarSistemaNPS();
 });
 
@@ -60,8 +56,6 @@ async function inicializarSistemaNPS() {
         }
       }, 1500);
     }
-
-    console.log("✅ Sistema NPS inicializado correctamente");
   } catch (error) {
     console.error("❌ Error al inicializar sistema NPS:", error);
   }
@@ -77,7 +71,6 @@ function verificarModulos() {
     "Mejoras UI": typeof habilitarOrdenamientoTabla === "function",
   };
 
-  console.log("📦 Verificando módulos:");
   Object.entries(modulos).forEach(([nombre, cargado]) => {
     console.log(`  ${cargado ? "✅" : "❌"} ${nombre}`);
   });
@@ -201,6 +194,3 @@ window.NPS_SYSTEM = {
   inicializado: true,
   timestamp: new Date().toISOString(),
 };
-
-console.log("✅ Integración NPS completa. Sistema listo.");
-console.log("📊 NPS System v" + NPS_CONFIG.version);

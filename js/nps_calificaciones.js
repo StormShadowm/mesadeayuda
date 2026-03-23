@@ -3,8 +3,6 @@
  * Sistema de calificaciones NPS y reapertura de tickets
  */
 
-console.log("🌟 Cargando módulo de calificaciones NPS...");
-
 // ==================== VARIABLES GLOBALES ====================
 
 let ticketActualCalificacion = null;

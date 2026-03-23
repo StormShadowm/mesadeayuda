@@ -3,8 +3,6 @@
  * Módulo para mostrar historial de login/logout
  */
 
-console.log("📝 Cargando módulo de historial de accesos...");
-
 // ==================== CARGAR HISTORIAL ====================
 
 async function cargarHistorialAccesos(idUsuario) {
@@ -229,8 +227,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // Interceptar botones de logout
   interceptarLogout();
 });
-
-console.log("✅ Módulo de historial de accesos cargado");
 
 // Exportar funciones
 window.cargarHistorialAccesos = cargarHistorialAccesos;

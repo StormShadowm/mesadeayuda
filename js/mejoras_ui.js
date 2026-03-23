@@ -3,8 +3,6 @@
  * Solo funciones esenciales para el sistema NPS
  */
 
-console.log("🎨 Cargando módulo de mejoras UI (versión ligera)...");
-
 // ==================== NOTIFICACIONES TOAST ====================
 
 function mostrarNotificacion(mensaje, tipo = "info") {
@@ -91,8 +89,6 @@ async function validarEnvioMensaje(idTicket) {
     return true; // Permitir si hay error
   }
 }
-
-console.log("✅ Módulo de mejoras UI (ligero) cargado");
 
 // Exportar funciones
 window.mostrarNotificacion = mostrarNotificacion;

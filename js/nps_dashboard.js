@@ -3,8 +3,6 @@
  * Dashboard de estadísticas NPS para administradores
  */
 
-console.log("📊 Cargando dashboard NPS...");
-
 // ==================== CARGAR ESTADÍSTICAS NPS ====================
 
 async function loadNPSStats() {
@@ -236,8 +234,6 @@ if (typeof loadStats === "function") {
     setTimeout(() => insertarNPSDashboard(), 500);
   };
 }
-
-console.log("✅ Dashboard NPS cargado");
 
 // Exportar funciones
 window.loadNPSStats = loadNPSStats;
