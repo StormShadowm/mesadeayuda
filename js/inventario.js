@@ -693,3 +693,1298 @@ function editInventarioFromDetail(id) {
     editInventario(id);
   }, 300);
 }
+
+let catalogosTipos = [];
+let catalogosMarcas = [];
+let catalogosModelos = [];
+let catalogosSedes = [];
+let catalogosAreas = [];
+
+// Renderizar vista de catálogos
+function renderCatalogosView() {
+  const content = document.getElementById("content");
+
+  content.innerHTML = `
+    <div class="row">
+      <div class="col-12 mb-3">
+        <h4>⚙️ Gestión de Catálogos</h4>
+        <p class="text-muted">Administre tipos de activos, marcas, modelos, sedes y áreas</p>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs" id="catalogosTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="tipos-tab" data-bs-toggle="tab" data-bs-target="#tipos" type="button">
+          📦 Tipos
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="marcas-tab" data-bs-toggle="tab" data-bs-target="#marcas" type="button">
+          🏷️ Marcas
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="modelos-tab" data-bs-toggle="tab" data-bs-target="#modelos" type="button">
+          🔧 Modelos
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="sedes-tab" data-bs-toggle="tab" data-bs-target="#sedes" type="button">
+          🏢 Sedes
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="areas-tab" data-bs-toggle="tab" data-bs-target="#areas" type="button">
+          🗂️ Áreas
+        </button>
+      </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content mt-3" id="catalogosTabContent">
+      
+      <!-- TIPOS -->
+      <div class="tab-pane fade show active" id="tipos" role="tabpanel">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">Tipos de Activos</h6>
+            <button class="btn btn-primary btn-sm" onclick="showModalCrearTipo()">
+              ➕ Nuevo Tipo
+            </button>
+          </div>
+          <div class="card-body">
+            <table class="table table-sm table-hover">
+              <thead class="table-light">
+                <tr>
+                  <th>ID</th>
+                  <th>Nombre</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tiposTableBody">
+                <tr><td colspan="4" class="text-center">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- MARCAS -->
+      <div class="tab-pane fade" id="marcas" role="tabpanel">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">Marcas</h6>
+            <button class="btn btn-primary btn-sm" onclick="showModalCrearMarca()">
+              ➕ Nueva Marca
+            </button>
+          </div>
+          <div class="card-body">
+            <table class="table table-sm table-hover">
+              <thead class="table-light">
+                <tr>
+                  <th>ID</th>
+                  <th>Nombre</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="marcasTableBody">
+                <tr><td colspan="4" class="text-center">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODELOS -->
+      <div class="tab-pane fade" id="modelos" role="tabpanel">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">Modelos</h6>
+            <button class="btn btn-primary btn-sm" onclick="showModalCrearModelo()">
+              ➕ Nuevo Modelo
+            </button>
+          </div>
+          <div class="card-body">
+            <table class="table table-sm table-hover">
+              <thead class="table-light">
+                <tr>
+                  <th>ID</th>
+                  <th>Nombre</th>
+                  <th>Marca</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="modelosTableBody">
+                <tr><td colspan="5" class="text-center">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SEDES -->
+      <div class="tab-pane fade" id="sedes" role="tabpanel">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">Sedes</h6>
+            <button class="btn btn-primary btn-sm" onclick="showModalCrearSede()">
+              ➕ Nueva Sede
+            </button>
+          </div>
+          <div class="card-body">
+            <table class="table table-sm table-hover">
+              <thead class="table-light">
+                <tr>
+                  <th>ID</th>
+                  <th>Nombre</th>
+                  <th>Ciudad</th>
+                  <th>Dirección</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="sedesTableBody">
+                <tr><td colspan="6" class="text-center">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ÁREAS -->
+      <div class="tab-pane fade" id="areas" role="tabpanel">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">Áreas</h6>
+            <button class="btn btn-primary btn-sm" onclick="showModalCrearArea()">
+              ➕ Nueva Área
+            </button>
+          </div>
+          <div class="card-body">
+            <table class="table table-sm table-hover">
+              <thead class="table-light">
+                <tr>
+                  <th>ID</th>
+                  <th>Nombre</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="areasTableBody">
+                <tr><td colspan="3" class="text-center">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  `;
+}
+
+// ==================== CARGAR CATÁLOGOS ====================
+
+async function loadCatalogosAdmin() {
+  await Promise.all([
+    loadTiposAdmin(),
+    loadMarcasAdmin(),
+    loadModelosAdmin(),
+    loadSedesAdmin(),
+    loadAreasAdmin(),
+  ]);
+}
+
+async function loadTiposAdmin() {
+  try {
+    const response = await fetch("php/inventario_api.php?action=get_all_tipos");
+    const data = await response.json();
+
+    if (data.success) {
+      catalogosTipos = data.tipos;
+      renderTiposTable();
+    }
+  } catch (error) {
+    console.error("Error al cargar tipos:", error);
+  }
+}
+
+async function loadMarcasAdmin() {
+  try {
+    const response = await fetch(
+      "php/inventario_api.php?action=get_all_marcas",
+    );
+    const data = await response.json();
+
+    if (data.success) {
+      catalogosMarcas = data.marcas;
+      renderMarcasTable();
+    }
+  } catch (error) {
+    console.error("Error al cargar marcas:", error);
+  }
+}
+
+async function loadModelosAdmin() {
+  try {
+    const response = await fetch(
+      "php/inventario_api.php?action=get_all_modelos",
+    );
+    const data = await response.json();
+
+    if (data.success) {
+      catalogosModelos = data.modelos;
+      renderModelosTable();
+    }
+  } catch (error) {
+    console.error("Error al cargar modelos:", error);
+  }
+}
+
+async function loadSedesAdmin() {
+  try {
+    const response = await fetch("php/inventario_api.php?action=get_all_sedes");
+    const data = await response.json();
+
+    if (data.success) {
+      catalogosSedes = data.sedes;
+      renderSedesTable();
+    }
+  } catch (error) {
+    console.error("Error al cargar sedes:", error);
+  }
+}
+
+async function loadAreasAdmin() {
+  try {
+    const response = await fetch("php/inventario_api.php?action=get_all_areas");
+    const data = await response.json();
+
+    if (data.success) {
+      catalogosAreas = data.areas;
+      renderAreasTable();
+    }
+  } catch (error) {
+    console.error("Error al cargar áreas:", error);
+  }
+}
+
+// ==================== RENDERIZAR TABLAS ====================
+
+function renderTiposTable() {
+  const tbody = document.getElementById("tiposTableBody");
+  if (!tbody) return;
+
+  let html = "";
+  catalogosTipos.forEach((tipo) => {
+    html += `
+      <tr>
+        <td>${tipo.id}</td>
+        <td>${tipo.nombre}</td>
+        <td><span class="badge ${tipo.activo ? "bg-success" : "bg-secondary"}">${tipo.activo ? "Activo" : "Inactivo"}</span></td>
+        <td>
+          <button class="btn btn-sm btn-warning" onclick="editarTipo(${tipo.id})" title="Editar">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn btn-sm ${tipo.activo ? "btn-danger" : "btn-success"}" onclick="toggleActivoTipo(${tipo.id})" title="${tipo.activo ? "Desactivar" : "Activar"}">
+            <i class="bi ${tipo.activo ? "bi-toggle-on" : "bi-toggle-off"}"></i>
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+  tbody.innerHTML = html;
+}
+
+function renderMarcasTable() {
+  const tbody = document.getElementById("marcasTableBody");
+  if (!tbody) return;
+
+  let html = "";
+  catalogosMarcas.forEach((marca) => {
+    html += `
+      <tr>
+        <td>${marca.id}</td>
+        <td>${marca.nombre}</td>
+        <td><span class="badge ${marca.activo ? "bg-success" : "bg-secondary"}">${marca.activo ? "Activo" : "Inactivo"}</span></td>
+        <td>
+          <button class="btn btn-sm btn-warning" onclick="editarMarca(${marca.id})" title="Editar">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn btn-sm ${marca.activo ? "btn-danger" : "btn-success"}" onclick="toggleActivoMarca(${marca.id})" title="${marca.activo ? "Desactivar" : "Activar"}">
+            <i class="bi ${marca.activo ? "bi-toggle-on" : "bi-toggle-off"}"></i>
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+  tbody.innerHTML = html;
+}
+
+function renderModelosTable() {
+  const tbody = document.getElementById("modelosTableBody");
+  if (!tbody) return;
+
+  let html = "";
+  catalogosModelos.forEach((modelo) => {
+    const marca = catalogosMarcas.find((m) => m.id == modelo.id_marca);
+    html += `
+      <tr>
+        <td>${modelo.id}</td>
+        <td>${modelo.nombre}</td>
+        <td>${marca ? marca.nombre : "-"}</td>
+        <td><span class="badge ${modelo.activo ? "bg-success" : "bg-secondary"}">${modelo.activo ? "Activo" : "Inactivo"}</span></td>
+        <td>
+          <button class="btn btn-sm btn-warning" onclick="editarModelo(${modelo.id})" title="Editar">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn btn-sm ${modelo.activo ? "btn-danger" : "btn-success"}" onclick="toggleActivoModelo(${modelo.id})" title="${modelo.activo ? "Desactivar" : "Activar"}">
+            <i class="bi ${modelo.activo ? "bi-toggle-on" : "bi-toggle-off"}"></i>
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+  tbody.innerHTML = html;
+}
+
+function renderSedesTable() {
+  const tbody = document.getElementById("sedesTableBody");
+  if (!tbody) return;
+
+  let html = "";
+  catalogosSedes.forEach((sede) => {
+    html += `
+      <tr>
+        <td>${sede.id}</td>
+        <td>${sede.nombre}</td>
+        <td>${sede.ciudad || "-"}</td>
+        <td>${sede.direccion || "-"}</td>
+        <td><span class="badge ${sede.activo ? "bg-success" : "bg-secondary"}">${sede.activo ? "Activo" : "Inactivo"}</span></td>
+        <td>
+          <button class="btn btn-sm btn-warning" onclick="editarSede(${sede.id})" title="Editar">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn btn-sm ${sede.activo ? "btn-danger" : "btn-success"}" onclick="toggleActivoSede(${sede.id})" title="${sede.activo ? "Desactivar" : "Activar"}">
+            <i class="bi ${sede.activo ? "bi-toggle-on" : "bi-toggle-off"}"></i>
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+  tbody.innerHTML = html;
+}
+
+function renderAreasTable() {
+  const tbody = document.getElementById("areasTableBody");
+  if (!tbody) return;
+
+  let html = "";
+  catalogosAreas.forEach((area) => {
+    html += `
+      <tr>
+        <td>${area.id}</td>
+        <td>${area.nombre}</td>
+        <td>
+          <button class="btn btn-sm btn-warning" onclick="editarArea(${area.id})" title="Editar">
+            <i class="bi bi-pencil"></i>
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+  tbody.innerHTML = html;
+}
+
+// ==================== MODALES CREAR ====================
+
+function showModalCrearTipo() {
+  const modalHtml = `
+    <div class="modal fade" id="modalCatalogoTemp" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Crear Tipo de Activo</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <label class="form-label">Nombre</label>
+            <input type="text" id="inputNombreCatalogo" class="form-control" placeholder="Ej: Tablet">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="guardarTipo()">Guardar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML("beforeend", modalHtml);
+  const modal = new bootstrap.Modal(
+    document.getElementById("modalCatalogoTemp"),
+  );
+  modal.show();
+
+  document
+    .getElementById("modalCatalogoTemp")
+    .addEventListener("hidden.bs.modal", function () {
+      this.remove();
+    });
+}
+
+function showModalCrearMarca() {
+  const modalHtml = `
+    <div class="modal fade" id="modalCatalogoTemp" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Crear Marca</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <label class="form-label">Nombre</label>
+            <input type="text" id="inputNombreCatalogo" class="form-control" placeholder="Ej: Microsoft">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="guardarMarca()">Guardar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML("beforeend", modalHtml);
+  const modal = new bootstrap.Modal(
+    document.getElementById("modalCatalogoTemp"),
+  );
+  modal.show();
+
+  document
+    .getElementById("modalCatalogoTemp")
+    .addEventListener("hidden.bs.modal", function () {
+      this.remove();
+    });
+}
+
+function showModalCrearModelo() {
+  let marcasOptions = "";
+  catalogosMarcas
+    .filter((m) => m.activo)
+    .forEach((m) => {
+      marcasOptions += `<option value="${m.id}">${m.nombre}</option>`;
+    });
+
+  const modalHtml = `
+    <div class="modal fade" id="modalCatalogoTemp" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Crear Modelo</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">Marca</label>
+              <select id="inputMarcaCatalogo" class="form-select">
+                <option value="">Seleccione...</option>
+                ${marcasOptions}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Nombre del Modelo</label>
+              <input type="text" id="inputNombreCatalogo" class="form-control" placeholder="Ej: Surface Pro 9">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="guardarModelo()">Guardar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML("beforeend", modalHtml);
+  const modal = new bootstrap.Modal(
+    document.getElementById("modalCatalogoTemp"),
+  );
+  modal.show();
+
+  document
+    .getElementById("modalCatalogoTemp")
+    .addEventListener("hidden.bs.modal", function () {
+      this.remove();
+    });
+}
+
+function showModalCrearSede() {
+  const modalHtml = `
+    <div class="modal fade" id="modalCatalogoTemp" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Crear Sede</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">Nombre</label>
+              <input type="text" id="inputNombreCatalogo" class="form-control" placeholder="Ej: Sede Centro">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Ciudad</label>
+              <input type="text" id="inputCiudadCatalogo" class="form-control" placeholder="Ej: Bogotá">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Dirección</label>
+              <input type="text" id="inputDireccionCatalogo" class="form-control" placeholder="Ej: Calle 123 #45-67">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="guardarSede()">Guardar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML("beforeend", modalHtml);
+  const modal = new bootstrap.Modal(
+    document.getElementById("modalCatalogoTemp"),
+  );
+  modal.show();
+
+  document
+    .getElementById("modalCatalogoTemp")
+    .addEventListener("hidden.bs.modal", function () {
+      this.remove();
+    });
+}
+
+function showModalCrearArea() {
+  const modalHtml = `
+    <div class="modal fade" id="modalCatalogoTemp" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Crear Área</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <label class="form-label">Nombre</label>
+            <input type="text" id="inputNombreCatalogo" class="form-control" placeholder="Ej: Recursos Humanos">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="guardarArea()">Guardar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML("beforeend", modalHtml);
+  const modal = new bootstrap.Modal(
+    document.getElementById("modalCatalogoTemp"),
+  );
+  modal.show();
+
+  document
+    .getElementById("modalCatalogoTemp")
+    .addEventListener("hidden.bs.modal", function () {
+      this.remove();
+    });
+}
+
+// ==================== GUARDAR ====================
+
+async function guardarTipo() {
+  const nombre = document.getElementById("inputNombreCatalogo").value.trim();
+  if (!nombre) {
+    alert("Ingrese un nombre");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("action", "create_tipo");
+  formData.append("nombre", nombre);
+
+  try {
+    const response = await fetch("php/inventario_api.php", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      alert("Tipo creado correctamente");
+      bootstrap.Modal.getInstance(
+        document.getElementById("modalCatalogoTemp"),
+      ).hide();
+      loadTiposAdmin();
+    } else {
+      alert("Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    alert("Error al guardar");
+  }
+}
+
+async function guardarMarca() {
+  const nombre = document.getElementById("inputNombreCatalogo").value.trim();
+  if (!nombre) {
+    alert("Ingrese un nombre");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("action", "create_marca");
+  formData.append("nombre", nombre);
+
+  try {
+    const response = await fetch("php/inventario_api.php", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      alert("Marca creada correctamente");
+      bootstrap.Modal.getInstance(
+        document.getElementById("modalCatalogoTemp"),
+      ).hide();
+      loadMarcasAdmin();
+    } else {
+      alert("Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    alert("Error al guardar");
+  }
+}
+
+async function guardarModelo() {
+  const nombre = document.getElementById("inputNombreCatalogo").value.trim();
+  const id_marca = document.getElementById("inputMarcaCatalogo").value;
+
+  if (!nombre || !id_marca) {
+    alert("Complete todos los campos");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("action", "create_modelo");
+  formData.append("nombre", nombre);
+  formData.append("id_marca", id_marca);
+
+  try {
+    const response = await fetch("php/inventario_api.php", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      alert("Modelo creado correctamente");
+      bootstrap.Modal.getInstance(
+        document.getElementById("modalCatalogoTemp"),
+      ).hide();
+      loadModelosAdmin();
+    } else {
+      alert("Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    alert("Error al guardar");
+  }
+}
+
+async function guardarSede() {
+  const nombre = document.getElementById("inputNombreCatalogo").value.trim();
+  const ciudad = document.getElementById("inputCiudadCatalogo").value.trim();
+  const direccion = document
+    .getElementById("inputDireccionCatalogo")
+    .value.trim();
+
+  if (!nombre) {
+    alert("Ingrese un nombre");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("action", "create_sede");
+  formData.append("nombre", nombre);
+  formData.append("ciudad", ciudad);
+  formData.append("direccion", direccion);
+
+  try {
+    const response = await fetch("php/inventario_api.php", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      alert("Sede creada correctamente");
+      bootstrap.Modal.getInstance(
+        document.getElementById("modalCatalogoTemp"),
+      ).hide();
+      loadSedesAdmin();
+    } else {
+      alert("Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    alert("Error al guardar");
+  }
+}
+
+async function guardarArea() {
+  const nombre = document.getElementById("inputNombreCatalogo").value.trim();
+  if (!nombre) {
+    alert("Ingrese un nombre");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("action", "create_area");
+  formData.append("nombre", nombre);
+
+  try {
+    const response = await fetch("php/inventario_api.php", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      alert("Área creada correctamente");
+      bootstrap.Modal.getInstance(
+        document.getElementById("modalCatalogoTemp"),
+      ).hide();
+      loadAreasAdmin();
+    } else {
+      alert("Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    alert("Error al guardar");
+  }
+}
+
+// ==================== TOGGLE ACTIVO ====================
+
+async function toggleActivoTipo(id) {
+  const tipo = catalogosTipos.find((t) => t.id == id);
+  if (!tipo) return;
+
+  if (!confirm(`¿${tipo.activo ? "Desactivar" : "Activar"} este tipo?`)) return;
+
+  const formData = new FormData();
+  formData.append("action", "toggle_tipo");
+  formData.append("id", id);
+
+  try {
+    const response = await fetch("php/inventario_api.php", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      loadTiposAdmin();
+    } else {
+      alert("Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+  }
+}
+
+async function toggleActivoMarca(id) {
+  const marca = catalogosMarcas.find((m) => m.id == id);
+  if (!marca) return;
+
+  if (!confirm(`¿${marca.activo ? "Desactivar" : "Activar"} esta marca?`))
+    return;
+
+  const formData = new FormData();
+  formData.append("action", "toggle_marca");
+  formData.append("id", id);
+
+  try {
+    const response = await fetch("php/inventario_api.php", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      loadMarcasAdmin();
+    } else {
+      alert("Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+  }
+}
+
+async function toggleActivoModelo(id) {
+  const modelo = catalogosModelos.find((m) => m.id == id);
+  if (!modelo) return;
+
+  if (!confirm(`¿${modelo.activo ? "Desactivar" : "Activar"} este modelo?`))
+    return;
+
+  const formData = new FormData();
+  formData.append("action", "toggle_modelo");
+  formData.append("id", id);
+
+  try {
+    const response = await fetch("php/inventario_api.php", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      loadModelosAdmin();
+    } else {
+      alert("Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+  }
+}
+
+async function toggleActivoSede(id) {
+  const sede = catalogosSedes.find((s) => s.id == id);
+  if (!sede) return;
+
+  if (!confirm(`¿${sede.activo ? "Desactivar" : "Activar"} esta sede?`)) return;
+
+  const formData = new FormData();
+  formData.append("action", "toggle_sede");
+  formData.append("id", id);
+
+  try {
+    const response = await fetch("php/inventario_api.php", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      loadSedesAdmin();
+    } else {
+      alert("Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+  }
+}
+// ==================== FUNCIONES DE EDICIÓN ====================
+
+function editarTipo(id) {
+  const tipo = catalogosTipos.find((t) => t.id == id);
+  if (!tipo) return;
+
+  const modalHtml = `
+    <div class="modal fade" id="modalCatalogoTemp" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Editar Tipo</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <label class="form-label">Nombre</label>
+            <input type="text" id="inputNombreCatalogo" class="form-control" value="${tipo.nombre}">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="actualizarTipo(${id})">Actualizar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML("beforeend", modalHtml);
+  const modal = new bootstrap.Modal(
+    document.getElementById("modalCatalogoTemp"),
+  );
+  modal.show();
+
+  document
+    .getElementById("modalCatalogoTemp")
+    .addEventListener("hidden.bs.modal", function () {
+      this.remove();
+    });
+}
+
+function editarMarca(id) {
+  const marca = catalogosMarcas.find((m) => m.id == id);
+  if (!marca) return;
+
+  const modalHtml = `
+    <div class="modal fade" id="modalCatalogoTemp" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Editar Marca</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <label class="form-label">Nombre</label>
+            <input type="text" id="inputNombreCatalogo" class="form-control" value="${marca.nombre}">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="actualizarMarca(${id})">Actualizar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML("beforeend", modalHtml);
+  const modal = new bootstrap.Modal(
+    document.getElementById("modalCatalogoTemp"),
+  );
+  modal.show();
+
+  document
+    .getElementById("modalCatalogoTemp")
+    .addEventListener("hidden.bs.modal", function () {
+      this.remove();
+    });
+}
+
+function editarModelo(id) {
+  const modelo = catalogosModelos.find((m) => m.id == id);
+  if (!modelo) return;
+
+  let marcasOptions = "";
+  catalogosMarcas
+    .filter((m) => m.activo)
+    .forEach((m) => {
+      const selected = m.id == modelo.id_marca ? "selected" : "";
+      marcasOptions += `<option value="${m.id}" ${selected}>${m.nombre}</option>`;
+    });
+
+  const modalHtml = `
+    <div class="modal fade" id="modalCatalogoTemp" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Editar Modelo</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">Marca</label>
+              <select id="inputMarcaCatalogo" class="form-select">
+                ${marcasOptions}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Nombre del Modelo</label>
+              <input type="text" id="inputNombreCatalogo" class="form-control" value="${modelo.nombre}">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="actualizarModelo(${id})">Actualizar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML("beforeend", modalHtml);
+  const modal = new bootstrap.Modal(
+    document.getElementById("modalCatalogoTemp"),
+  );
+  modal.show();
+
+  document
+    .getElementById("modalCatalogoTemp")
+    .addEventListener("hidden.bs.modal", function () {
+      this.remove();
+    });
+}
+
+function editarSede(id) {
+  const sede = catalogosSedes.find((s) => s.id == id);
+  if (!sede) return;
+
+  const modalHtml = `
+    <div class="modal fade" id="modalCatalogoTemp" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Editar Sede</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">Nombre</label>
+              <input type="text" id="inputNombreCatalogo" class="form-control" value="${sede.nombre}">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Ciudad</label>
+              <input type="text" id="inputCiudadCatalogo" class="form-control" value="${sede.ciudad || ""}">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Dirección</label>
+              <input type="text" id="inputDireccionCatalogo" class="form-control" value="${sede.direccion || ""}">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="actualizarSede(${id})">Actualizar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML("beforeend", modalHtml);
+  const modal = new bootstrap.Modal(
+    document.getElementById("modalCatalogoTemp"),
+  );
+  modal.show();
+
+  document
+    .getElementById("modalCatalogoTemp")
+    .addEventListener("hidden.bs.modal", function () {
+      this.remove();
+    });
+}
+
+function editarArea(id) {
+  const area = catalogosAreas.find((a) => a.id == id);
+  if (!area) return;
+
+  const modalHtml = `
+    <div class="modal fade" id="modalCatalogoTemp" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Editar Área</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <label class="form-label">Nombre</label>
+            <input type="text" id="inputNombreCatalogo" class="form-control" value="${area.nombre}">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="actualizarArea(${id})">Actualizar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML("beforeend", modalHtml);
+  const modal = new bootstrap.Modal(
+    document.getElementById("modalCatalogoTemp"),
+  );
+  modal.show();
+
+  document
+    .getElementById("modalCatalogoTemp")
+    .addEventListener("hidden.bs.modal", function () {
+      this.remove();
+    });
+}
+
+// ==================== FUNCIONES DE ACTUALIZACIÓN ====================
+
+async function actualizarTipo(id) {
+  const nombre = document.getElementById("inputNombreCatalogo").value.trim();
+  if (!nombre) {
+    alert("Ingrese un nombre");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("action", "update_tipo");
+  formData.append("id", id);
+  formData.append("nombre", nombre);
+
+  try {
+    const response = await fetch("php/inventario_api.php", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      alert("Tipo actualizado correctamente");
+      bootstrap.Modal.getInstance(
+        document.getElementById("modalCatalogoTemp"),
+      ).hide();
+      loadTiposAdmin();
+    } else {
+      alert("Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    alert("Error al actualizar");
+  }
+}
+
+async function actualizarMarca(id) {
+  const nombre = document.getElementById("inputNombreCatalogo").value.trim();
+  if (!nombre) {
+    alert("Ingrese un nombre");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("action", "update_marca");
+  formData.append("id", id);
+  formData.append("nombre", nombre);
+
+  try {
+    const response = await fetch("php/inventario_api.php", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      alert("Marca actualizada correctamente");
+      bootstrap.Modal.getInstance(
+        document.getElementById("modalCatalogoTemp"),
+      ).hide();
+      loadMarcasAdmin();
+    } else {
+      alert("Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    alert("Error al actualizar");
+  }
+}
+
+async function actualizarModelo(id) {
+  const nombre = document.getElementById("inputNombreCatalogo").value.trim();
+  const id_marca = document.getElementById("inputMarcaCatalogo").value;
+
+  if (!nombre || !id_marca) {
+    alert("Complete todos los campos");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("action", "update_modelo");
+  formData.append("id", id);
+  formData.append("nombre", nombre);
+  formData.append("id_marca", id_marca);
+
+  try {
+    const response = await fetch("php/inventario_api.php", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      alert("Modelo actualizado correctamente");
+      bootstrap.Modal.getInstance(
+        document.getElementById("modalCatalogoTemp"),
+      ).hide();
+      loadModelosAdmin();
+    } else {
+      alert("Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    alert("Error al actualizar");
+  }
+}
+
+async function actualizarSede(id) {
+  const nombre = document.getElementById("inputNombreCatalogo").value.trim();
+  const ciudad = document.getElementById("inputCiudadCatalogo").value.trim();
+  const direccion = document
+    .getElementById("inputDireccionCatalogo")
+    .value.trim();
+
+  if (!nombre) {
+    alert("Ingrese un nombre");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("action", "update_sede");
+  formData.append("id", id);
+  formData.append("nombre", nombre);
+  formData.append("ciudad", ciudad);
+  formData.append("direccion", direccion);
+
+  try {
+    const response = await fetch("php/inventario_api.php", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      alert("Sede actualizada correctamente");
+      bootstrap.Modal.getInstance(
+        document.getElementById("modalCatalogoTemp"),
+      ).hide();
+      loadSedesAdmin();
+    } else {
+      alert("Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    alert("Error al actualizar");
+  }
+}
+
+async function actualizarArea(id) {
+  const nombre = document.getElementById("inputNombreCatalogo").value.trim();
+  if (!nombre) {
+    alert("Ingrese un nombre");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("action", "update_area");
+  formData.append("id", id);
+  formData.append("nombre", nombre);
+
+  try {
+    const response = await fetch("php/inventario_api.php", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      alert("Área actualizada correctamente");
+      bootstrap.Modal.getInstance(
+        document.getElementById("modalCatalogoTemp"),
+      ).hide();
+      loadAreasAdmin();
+    } else {
+      alert("Error: " + data.message);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    alert("Error al actualizar");
+  }
+}

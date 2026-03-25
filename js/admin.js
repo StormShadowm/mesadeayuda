@@ -219,11 +219,13 @@ function showView(view, event = null) {
   } else if (view === "users") {
     loadUsers();
   } else if (view === "inventario") {
-    // ✅ AGREGAR ESTE BLOQUE
     renderInventarioView();
     loadInventario();
   } else if (view === "stats") {
     loadStats();
+  } else if (view === "catalogos") {
+    renderCatalogosView();
+    loadCatalogosAdmin();
   }
 }
 

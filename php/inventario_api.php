@@ -351,8 +351,237 @@ elseif ($action === 'create_tipo') {
     } else {
         echo json_encode(['success' => false, 'message' => 'Error: ' . $conn->error]);
     }
-} else {
-    echo json_encode(['success' => false, 'message' => 'Acción no válida']);
+} elseif ($action === 'get_all_tipos') {
+    $result = $conn->query("SELECT * FROM tipos_activo ORDER BY nombre");
+    $tipos = [];
+    while ($row = $result->fetch_assoc()) {
+        $tipos[] = $row;
+    }
+    echo json_encode(['success' => true, 'tipos' => $tipos]);
+} elseif ($action === 'get_all_marcas') {
+    $result = $conn->query("SELECT * FROM marcas ORDER BY nombre");
+    $marcas = [];
+    while ($row = $result->fetch_assoc()) {
+        $marcas[] = $row;
+    }
+    echo json_encode(['success' => true, 'marcas' => $marcas]);
+} elseif ($action === 'get_all_modelos') {
+    $result = $conn->query("SELECT m.*, ma.nombre as marca_nombre FROM modelos m LEFT JOIN marcas ma ON m.id_marca = ma.id ORDER BY m.nombre");
+    $modelos = [];
+    while ($row = $result->fetch_assoc()) {
+        $modelos[] = $row;
+    }
+    echo json_encode(['success' => true, 'modelos' => $modelos]);
+} elseif ($action === 'get_all_sedes') {
+    $result = $conn->query("SELECT * FROM sedes ORDER BY nombre");
+    $sedes = [];
+    while ($row = $result->fetch_assoc()) {
+        $sedes[] = $row;
+    }
+    echo json_encode(['success' => true, 'sedes' => $sedes]);
+} elseif ($action === 'get_all_areas') {
+    $result = $conn->query("SELECT * FROM areas ORDER BY nombre");
+    $areas = [];
+    while ($row = $result->fetch_assoc()) {
+        $areas[] = $row;
+    }
+    echo json_encode(['success' => true, 'areas' => $areas]);
 }
+
+// ==================== CREAR SEDES Y ÁREAS ====================
+
+elseif ($action === 'create_sede') {
+    if ($user_rol > 2) {
+        echo json_encode(['success' => false, 'message' => 'No tiene permisos']);
+        exit;
+    }
+
+    $nombre = isset($_POST['nombre']) ? trim($_POST['nombre']) : '';
+    $ciudad = isset($_POST['ciudad']) ? trim($_POST['ciudad']) : '';
+    $direccion = isset($_POST['direccion']) ? trim($_POST['direccion']) : '';
+
+    $stmt = $conn->prepare("INSERT INTO sedes (nombre, ciudad, direccion) VALUES (?, ?, ?)");
+    $stmt->bind_param("sss", $nombre, $ciudad, $direccion);
+
+    if ($stmt->execute()) {
+        echo json_encode(['success' => true, 'id' => $conn->insert_id]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Error: ' . $conn->error]);
+    }
+} elseif ($action === 'create_area') {
+    if ($user_rol > 2) {
+        echo json_encode(['success' => false, 'message' => 'No tiene permisos']);
+        exit;
+    }
+
+    $nombre = isset($_POST['nombre']) ? trim($_POST['nombre']) : '';
+
+    $stmt = $conn->prepare("INSERT INTO areas (nombre) VALUES (?)");
+    $stmt->bind_param("s", $nombre);
+
+    if ($stmt->execute()) {
+        echo json_encode(['success' => true, 'id' => $conn->insert_id]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Error: ' . $conn->error]);
+    }
+}
+
+// ==================== TOGGLE ACTIVO ====================
+
+elseif ($action === 'toggle_tipo') {
+    if ($user_rol > 2) {
+        echo json_encode(['success' => false, 'message' => 'No tiene permisos']);
+        exit;
+    }
+
+    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+    $stmt = $conn->prepare("UPDATE tipos_activo SET activo = NOT activo WHERE id = ?");
+    $stmt->bind_param("i", $id);
+
+    if ($stmt->execute()) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Error']);
+    }
+} elseif ($action === 'toggle_marca') {
+    if ($user_rol > 2) {
+        echo json_encode(['success' => false, 'message' => 'No tiene permisos']);
+        exit;
+    }
+
+    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+    $stmt = $conn->prepare("UPDATE marcas SET activo = NOT activo WHERE id = ?");
+    $stmt->bind_param("i", $id);
+
+    if ($stmt->execute()) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Error']);
+    }
+} elseif ($action === 'toggle_modelo') {
+    if ($user_rol > 2) {
+        echo json_encode(['success' => false, 'message' => 'No tiene permisos']);
+        exit;
+    }
+
+    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+    $stmt = $conn->prepare("UPDATE modelos SET activo = NOT activo WHERE id = ?");
+    $stmt->bind_param("i", $id);
+
+    if ($stmt->execute()) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Error']);
+    }
+} elseif ($action === 'toggle_sede') {
+    if ($user_rol > 2) {
+        echo json_encode(['success' => false, 'message' => 'No tiene permisos']);
+        exit;
+    }
+
+    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+    $stmt = $conn->prepare("UPDATE sedes SET activo = NOT activo WHERE id = ?");
+    $stmt->bind_param("i", $id);
+
+    if ($stmt->execute()) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Error']);
+    }
+} // ==================== ACTUALIZAR CATÁLOGOS ====================
+
+elseif ($action === 'update_tipo') {
+    if ($user_rol > 2) {
+        echo json_encode(['success' => false, 'message' => 'No tiene permisos']);
+        exit;
+    }
+
+    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+    $nombre = isset($_POST['nombre']) ? trim($_POST['nombre']) : '';
+
+    $stmt = $conn->prepare("UPDATE tipos_activo SET nombre = ? WHERE id = ?");
+    $stmt->bind_param("si", $nombre, $id);
+
+    if ($stmt->execute()) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Error: ' . $conn->error]);
+    }
+} elseif ($action === 'update_marca') {
+    if ($user_rol > 2) {
+        echo json_encode(['success' => false, 'message' => 'No tiene permisos']);
+        exit;
+    }
+
+    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+    $nombre = isset($_POST['nombre']) ? trim($_POST['nombre']) : '';
+
+    $stmt = $conn->prepare("UPDATE marcas SET nombre = ? WHERE id = ?");
+    $stmt->bind_param("si", $nombre, $id);
+
+    if ($stmt->execute()) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Error: ' . $conn->error]);
+    }
+} elseif ($action === 'update_modelo') {
+    if ($user_rol > 2) {
+        echo json_encode(['success' => false, 'message' => 'No tiene permisos']);
+        exit;
+    }
+
+    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+    $nombre = isset($_POST['nombre']) ? trim($_POST['nombre']) : '';
+    $id_marca = isset($_POST['id_marca']) ? (int)$_POST['id_marca'] : 0;
+
+    $stmt = $conn->prepare("UPDATE modelos SET nombre = ?, id_marca = ? WHERE id = ?");
+    $stmt->bind_param("sii", $nombre, $id_marca, $id);
+
+    if ($stmt->execute()) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Error: ' . $conn->error]);
+    }
+} elseif ($action === 'update_sede') {
+    if ($user_rol > 2) {
+        echo json_encode(['success' => false, 'message' => 'No tiene permisos']);
+        exit;
+    }
+
+    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+    $nombre = isset($_POST['nombre']) ? trim($_POST['nombre']) : '';
+    $ciudad = isset($_POST['ciudad']) ? trim($_POST['ciudad']) : '';
+    $direccion = isset($_POST['direccion']) ? trim($_POST['direccion']) : '';
+
+    $stmt = $conn->prepare("UPDATE sedes SET nombre = ?, ciudad = ?, direccion = ? WHERE id = ?");
+    $stmt->bind_param("sssi", $nombre, $ciudad, $direccion, $id);
+
+    if ($stmt->execute()) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Error: ' . $conn->error]);
+    }
+} elseif ($action === 'update_area') {
+    if ($user_rol > 2) {
+        echo json_encode(['success' => false, 'message' => 'No tiene permisos']);
+        exit;
+    }
+
+    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+    $nombre = isset($_POST['nombre']) ? trim($_POST['nombre']) : '';
+
+    $stmt = $conn->prepare("UPDATE areas SET nombre = ? WHERE id = ?");
+    $stmt->bind_param("si", $nombre, $id);
+
+    if ($stmt->execute()) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Error: ' . $conn->error]);
+    }
+}
+
+
+
+
 
 $conn->close();
