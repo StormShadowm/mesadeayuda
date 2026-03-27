@@ -5,10 +5,10 @@
  * Archivo de conexión a la base de datos
  */
 
-$host = "shuttle.proxy.rlwy.net";
+$host = "127.0.0.1";
 $db = "mesa_ayuda_final";
 $user = "root";
-$pass = "kKfZyGNSyQVyefumDKygVRdWRahWVMYB";
+$pass = "";
 
 try {
     $conn = new mysqli($host, $user, $pass, $db);
